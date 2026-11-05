@@ -1,22 +1,17 @@
 import { registerPlugin } from '@hubra/plugin-sdk'
-import { IconNote } from '@tabler/icons-react'
-import { NotesScreen } from './NotesScreen'
+import { IconCalendarTime } from '@tabler/icons-react'
+import { BookingScreen } from './BookingScreen'
 import translations from './translations.json'
 
-// Everything here shows only while the module is on for the club and the
-// person has `perm`. Other places to add things: `tabs` (a tab on a built-in
-// screen) and `slots` (account.cards, inventory.item, settings.module.actions).
 registerPlugin({
-  id: 'example',
+  id: 'booking',
   routes: [
-    {
-      path: 'example',
-      module: 'example',
-      perm: 'example.notes.read',
-      component: NotesScreen,
-    },
+    { path: 'booking', module: 'booking', component: BookingScreen },
+    { path: 'booking/mine', module: 'booking', component: BookingScreen },
+    { path: 'booking/requests', module: 'booking', perm: 'booking.bookings.update', component: BookingScreen },
+    { path: 'booking/resources', module: 'booking', perm: 'booking.resources.update', component: BookingScreen },
   ],
-  // The nav entry in hubra_example/__init__.py names this icon.
-  icons: { note: IconNote },
+  // The nav entry in hubra_booking/__init__.py names this icon.
+  icons: { 'calendar-time': IconCalendarTime },
   translations,
 })

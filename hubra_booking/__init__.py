@@ -1,0 +1,38 @@
+"""Booking: rooms and equipment on a calendar.
+
+- Resources are rooms (the clubhouse, a workshop) or equipment (a trailer,
+  a laser cutter). A resource can point to an item of the Inventory plugin.
+- Members book a slot. Overlapping bookings are refused.
+- A resource can need approval: the booking waits until someone with
+  ``booking.bookings.update`` approves it.
+- A resource can cost a fee (flat and/or per hour). It goes on the member's
+  invoice once the booking is confirmed.
+
+Permissions:
+    booking.resources.update   add and change resources
+    booking.bookings.update    approve, reject and cancel anyone's bookings,
+                               book for others and repeat weekly
+"""
+
+from hubra.core.modules import Blueprint, Module, NavItem
+
+module = Module(
+    code="booking",
+    name="Booking",
+    description="Rooms and equipment on a calendar",
+    default_enabled=False,
+    depends_on=("members", "finance"),
+    blueprints=(
+        Blueprint("hubra_booking.routes", "booking_bp", "/api/v1/app/booking"),
+    ),
+    nav=(
+        NavItem(
+            "/app/booking",
+            "shell.nav.booking",
+            "calendar-time",
+            section="more",
+            order=27,
+        ),
+    ),
+    tables=("booking_resources", "booking_bookings"),
+)

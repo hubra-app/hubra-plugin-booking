@@ -1,28 +1,246 @@
 {
   "en-GB": {
-    "shell": { "nav": { "example": "Notice board" } },
-    "example": {
-      "title": "Notice board",
-      "desc": "Short notes for the whole club",
-      "placeholder": "Write a note…",
-      "add": "Post note",
-      "saved": "Note posted",
-      "delete": "Delete note",
-      "loading": "Loading…",
-      "empty": "No notes yet."
+    "shell": {
+      "nav": {
+        "booking": "Bookings"
+      }
+    },
+    "roles": {
+      "perms": {
+        "booking_resources_update": "Add and change bookable resources",
+        "booking_bookings_update": "Approve and manage bookings"
+      }
+    },
+    "booking": {
+      "title": "Bookings",
+      "desc": "Rooms and equipment on a calendar.",
+      "tabs": {
+        "calendar": "Calendar",
+        "mine": "My bookings",
+        "requests": "Requests",
+        "resources": "Resources"
+      },
+      "calendar": {
+        "today": "Today",
+        "prev": "Previous",
+        "next": "Next",
+        "noResources": "Nothing to book yet",
+        "noResourcesHint": "Add a room or a piece of equipment under Resources."
+      },
+      "resource": "Resource",
+      "kinds": {
+        "room": "Room",
+        "equipment": "Equipment"
+      },
+      "needsApproval": "Needs approval",
+      "free": "Free",
+      "perHour": "{{amount}} per hour",
+      "maxHours_one": "At most {{count}} hour at a time",
+      "maxHours_other": "At most {{count}} hours at a time",
+      "new": "Book",
+      "book": "Book",
+      "request": "Request",
+      "booked": "Booked",
+      "requested": "Requested; you'll get a message once it's decided",
+      "booking": "Booking",
+      "from": "From",
+      "to": "Until",
+      "fromDay": "Start date",
+      "fromTime": "Start time",
+      "toDay": "End date",
+      "toTime": "End time",
+      "endBeforeStart": "The end has to be after the start.",
+      "titleField": "What for",
+      "titleHint": "Shown in the calendar instead of your name.",
+      "titleExample": "e.g. Training U13",
+      "note": "Note",
+      "for": "For",
+      "repeat": "Repeat weekly",
+      "repeatHint": "How many more weeks",
+      "feeNote": "Fee {{amount}}, on your invoice",
+      "approvalNote": "The board confirms this booking first. Until then the slot is held for you.",
+      "status": {
+        "pending": "Waiting for approval",
+        "approved": "Confirmed",
+        "rejected": "Declined",
+        "cancelled": "Cancelled"
+      },
+      "weekly": "Weekly",
+      "bookedBy": "Booked by {{name}}",
+      "decisionNote": "Note from the board: {{note}}",
+      "decisionField": "Note to the member (optional)",
+      "cancelSeries": "Also cancel the following weeks",
+      "cancelBooking": "Cancel booking",
+      "cancelled": "Cancelled",
+      "approve": "Approve",
+      "approved": "Confirmed",
+      "reject": "Decline",
+      "rejected": "Declined",
+      "close": "Close",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saved": "Saved",
+      "delete": "Delete",
+      "category": "Category",
+      "categoryHint": "Where the fees are booked in Finance.",
+      "categoryNone": "No category",
+      "mine": {
+        "none": "No bookings yet",
+        "noneHint": "Pick a free slot in the calendar.",
+        "past": "Past 30 days"
+      },
+      "requests": {
+        "none": "No open requests",
+        "hint": "These bookings wait for you. Open one to confirm or decline it."
+      },
+      "resources": {
+        "hint": "Rooms and equipment members can book.",
+        "new": "New resource",
+        "edit": "Edit resource",
+        "none": "No resources yet",
+        "noneHint": "Add the clubhouse, a room or a trailer.",
+        "name": "Name",
+        "nameExample": "e.g. Clubhouse",
+        "kind": "Kind",
+        "location": "Where",
+        "color": "Colour",
+        "description": "Description and rules",
+        "item": "Inventory item",
+        "itemHint": "Links it to an item of the inventory.",
+        "linked": "Inventory: {{name}}",
+        "feeFlat": "Fee per booking",
+        "feePerHour": "Fee per hour",
+        "maxHours": "Longest booking (hours)",
+        "maxHoursHint": "Empty: no limit",
+        "advanceDays": "Bookable ahead (days)",
+        "advanceDaysHint": "Empty: 180 days",
+        "needsApproval": "Bookings need approval by the board",
+        "active": "Can be booked",
+        "off": "Switched off",
+        "deleteTitle": "Delete resource?"
+      }
     }
   },
   "de-CH": {
-    "shell": { "nav": { "example": "Pinnwand" } },
-    "example": {
-      "title": "Pinnwand",
-      "desc": "Kurze Notizen für den ganzen Verein",
-      "placeholder": "Notiz schreiben …",
-      "add": "Notiz posten",
-      "saved": "Notiz gepostet",
-      "delete": "Notiz löschen",
-      "loading": "Wird geladen …",
-      "empty": "Noch keine Notizen."
+    "shell": {
+      "nav": {
+        "booking": "Reservationen"
+      }
+    },
+    "roles": {
+      "perms": {
+        "booking_resources_update": "Ressourcen für Reservationen verwalten",
+        "booking_bookings_update": "Reservationen freigeben und verwalten"
+      }
+    },
+    "booking": {
+      "title": "Reservationen",
+      "desc": "Räume und Geräte im Kalender.",
+      "tabs": {
+        "calendar": "Kalender",
+        "mine": "Meine Buchungen",
+        "requests": "Anfragen",
+        "resources": "Ressourcen"
+      },
+      "calendar": {
+        "today": "Heute",
+        "prev": "Zurück",
+        "next": "Weiter",
+        "noResources": "Noch nichts zu buchen",
+        "noResourcesHint": "Leg unter Ressourcen einen Raum oder ein Gerät an."
+      },
+      "resource": "Ressource",
+      "kinds": {
+        "room": "Raum",
+        "equipment": "Gerät"
+      },
+      "needsApproval": "Mit Freigabe",
+      "free": "Kostenlos",
+      "perHour": "{{amount}} pro Stunde",
+      "maxHours_one": "Höchstens {{count}} Stunde am Stück",
+      "maxHours_other": "Höchstens {{count}} Stunden am Stück",
+      "new": "Buchen",
+      "book": "Buchen",
+      "request": "Anfragen",
+      "booked": "Gebucht",
+      "requested": "Angefragt; du bekommst Bescheid, sobald entschieden ist",
+      "booking": "Buchung",
+      "from": "Von",
+      "to": "Bis",
+      "fromDay": "Startdatum",
+      "fromTime": "Startzeit",
+      "toDay": "Enddatum",
+      "toTime": "Endzeit",
+      "endBeforeStart": "Das Ende muss nach dem Start liegen.",
+      "titleField": "Wofür",
+      "titleHint": "Steht im Kalender statt deines Namens.",
+      "titleExample": "z.B. Training U13",
+      "note": "Notiz",
+      "for": "Für",
+      "repeat": "Wöchentlich wiederholen",
+      "repeatHint": "Wie viele weitere Wochen",
+      "feeNote": "Gebühr {{amount}}, kommt auf deine Rechnung",
+      "approvalNote": "Der Vorstand bestätigt diese Buchung zuerst. Bis dahin ist der Termin für dich reserviert.",
+      "status": {
+        "pending": "Wartet auf Freigabe",
+        "approved": "Bestätigt",
+        "rejected": "Abgelehnt",
+        "cancelled": "Storniert"
+      },
+      "weekly": "Wöchentlich",
+      "bookedBy": "Gebucht von {{name}}",
+      "decisionNote": "Notiz vom Vorstand: {{note}}",
+      "decisionField": "Notiz an das Mitglied (optional)",
+      "cancelSeries": "Auch die folgenden Wochen stornieren",
+      "cancelBooking": "Buchung stornieren",
+      "cancelled": "Storniert",
+      "approve": "Bestätigen",
+      "approved": "Bestätigt",
+      "reject": "Ablehnen",
+      "rejected": "Abgelehnt",
+      "close": "Schliessen",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "saved": "Gespeichert",
+      "delete": "Löschen",
+      "category": "Kategorie",
+      "categoryHint": "Wohin die Gebühren in Finanzen gebucht werden.",
+      "categoryNone": "Keine Kategorie",
+      "mine": {
+        "none": "Noch keine Buchungen",
+        "noneHint": "Wähl im Kalender einen freien Termin.",
+        "past": "Letzte 30 Tage"
+      },
+      "requests": {
+        "none": "Keine offenen Anfragen",
+        "hint": "Diese Buchungen warten auf dich. Öffne eine, um sie zu bestätigen oder abzulehnen."
+      },
+      "resources": {
+        "hint": "Räume und Geräte, die Mitglieder buchen können.",
+        "new": "Neue Ressource",
+        "edit": "Ressource bearbeiten",
+        "none": "Noch keine Ressourcen",
+        "noneHint": "Leg das Clubhaus, einen Raum oder einen Anhänger an.",
+        "name": "Name",
+        "nameExample": "z.B. Clubhaus",
+        "kind": "Art",
+        "location": "Ort",
+        "color": "Farbe",
+        "description": "Beschreibung und Regeln",
+        "item": "Inventar-Gegenstand",
+        "itemHint": "Verknüpft sie mit einem Gegenstand im Inventar.",
+        "linked": "Inventar: {{name}}",
+        "feeFlat": "Gebühr pro Buchung",
+        "feePerHour": "Gebühr pro Stunde",
+        "maxHours": "Längste Buchung (Stunden)",
+        "maxHoursHint": "Leer: keine Grenze",
+        "advanceDays": "Im Voraus buchbar (Tage)",
+        "advanceDaysHint": "Leer: 180 Tage",
+        "needsApproval": "Buchungen brauchen eine Freigabe vom Vorstand",
+        "active": "Buchbar",
+        "off": "Ausgeschaltet",
+        "deleteTitle": "Ressource löschen?"
+      }
     }
   }
 }
