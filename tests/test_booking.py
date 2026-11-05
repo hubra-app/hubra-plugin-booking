@@ -188,3 +188,68 @@ def test_approval_and_weekly_series(client, db, club):
         f"{BASE}/bookings/{series[1]['id']}/cancel", json={"series": True}
     ).get_json()
     assert sorted(gone["cancelled"]) == sorted(s["id"] for s in series[1:])
+
+
+# ── Inventory, through its contracts ────────────────────────────────────────
+
+ITEMS = {7: ("Anhänger", "Hof"), 9: ("Laser", "Werkstatt")}
+
+
+def _inv_get(ctx, data):
+    return [{"id": i, "name": ITEMS[i][0]} for i in data["ids"] if i in ITEMS]
+
+
+def _inv_list(ctx, data):
+    return [
+        {"id": i, "name": name, "location": where}
+        for i, (name, where) in sorted(ITEMS.items())
+    ]
+
+
+@pytest.fixture
+def inventory(app, monkeypatch):
+    """A stand-in Inventory that offers the two queries Booking uses."""
+    from hubra.core.contracts import query_contract
+    from hubra.core.modules import Module, registry
+
+    registry.load()
+    fake = Module(
+        code="inventory",
+        name="Inventory",
+        provides=(
+            query_contract("inventory.items.get", f"{__name__}:_inv_get"),
+            query_contract("inventory.items.list", f"{__name__}:_inv_list"),
+        ),
+    )
+    monkeypatch.setitem(registry._modules, "inventory", fake)
+    set_modules(True, "inventory")
+    return fake
+
+
+def test_resources_link_inventory_items_through_its_queries(client, club, inventory):
+    _login(client, "kim@test.ch")
+    assert client.get(f"{BASE}/options").get_json()["inventory"] is True
+    items = client.get(f"{BASE}/inventory-items").get_json()
+    assert [i["name"] for i in items] == ["Anhänger", "Laser"]
+
+    res = client.post(
+        f"{BASE}/resources",
+        json={"name": "Anhänger", "kind": "equipment", "inventoryItemId": 7},
+    )
+    assert res.status_code == 201, res.get_json()
+    assert res.get_json()["inventoryItemName"] == "Anhänger"
+    bad = client.post(
+        f"{BASE}/resources",
+        json={"name": "Nichts", "kind": "equipment", "inventoryItemId": 99},
+    )
+    assert bad.status_code == 400
+
+
+def test_without_inventory_resources_have_no_items(client, club, monkeypatch):
+    from hubra.core.modules import registry
+
+    registry.load()
+    monkeypatch.delitem(registry._modules, "inventory", raising=False)
+    _login(client, "kim@test.ch")
+    assert client.get(f"{BASE}/options").get_json()["inventory"] is False
+    assert client.get(f"{BASE}/inventory-items").get_json() == []

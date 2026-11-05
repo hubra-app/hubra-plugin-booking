@@ -25,10 +25,16 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, current_app, jsonify, request
-import sqlalchemy as sa
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from hubra.core.auth.helpers import get_current_member
+from hubra.core.contracts import (
+    SYSTEM,
+    ActionFailed,
+    ActionUnavailable,
+    available,
+)
+from hubra.core.contracts import query as contract_query
 from hubra.core.errors import api_error
 from hubra.core.extensions import db
 from hubra.core.models.finance import Invoice, TransactionCategory
@@ -105,33 +111,25 @@ def _day_label(moment: datetime) -> str:
 # ── Output ───────────────────────────────────────────────────────────────────
 
 
-# The Inventory plugin's table, read without importing the plugin.
-_ITEMS = sa.table(
-    "inventory_items",
-    sa.column("id"),
-    sa.column("name"),
-    sa.column("location"),
-    sa.column("deleted_at"),
-)
+# Inventory items come through the Inventory plugin's contracts
+# (docs/contracts.md in hubra-app/hubra), never its tables.
+_GET_ITEMS = "inventory.items.get"
+_LIST_ITEMS = "inventory.items.list"
 
 
 def _inventory_available() -> bool:
-    conn = db.session.connection()
-    if conn.dialect.name == "postgresql":
-        return bool(
-            conn.execute(text("SELECT to_regclass('inventory_items')")).scalar()
-        )
-    return sa.inspect(conn).has_table("inventory_items")
+    return available(_GET_ITEMS)
 
 
 def _inventory_names(ids) -> dict[int, str]:
     ids = sorted({i for i in ids if i})
     if not ids or not _inventory_available():
         return {}
-    rows = db.session.execute(
-        select(_ITEMS.c.id, _ITEMS.c.name).where(_ITEMS.c.id.in_(ids))
-    )
-    return {row.id: row.name for row in rows}
+    try:
+        items = contract_query(_GET_ITEMS, ids=ids[:500], actor=SYSTEM)
+    except (ActionUnavailable, ActionFailed):
+        return {}
+    return {item["id"]: item["name"] for item in items}
 
 
 def _resource(r: BookingResource, items: dict[int, str]) -> dict:
@@ -333,16 +331,14 @@ def delete_resource(resource_id: int):
 @booking_bp.get("/inventory-items")
 @permission_required("resources", "update", "Add and change bookable resources")
 def inventory_items():
-    if not _inventory_available():
+    if not available(_LIST_ITEMS):
         return jsonify([])
-    rows = db.session.execute(
-        select(_ITEMS.c.id, _ITEMS.c.name, _ITEMS.c.location)
-        .where(_ITEMS.c.deleted_at.is_(None))
-        .order_by(_ITEMS.c.name)
-        .limit(1000)
-    )
+    try:
+        items = contract_query(_LIST_ITEMS, limit=500, actor=SYSTEM)
+    except (ActionUnavailable, ActionFailed):
+        return jsonify([])
     return jsonify(
-        [{"id": row.id, "name": row.name, "location": row.location} for row in rows]
+        [{"id": i["id"], "name": i["name"], "location": i["location"]} for i in items]
     )
 
 
