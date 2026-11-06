@@ -429,22 +429,23 @@ def _bill(b: Booking, r: BookingResource, actor_id: int) -> None:
     """Puts the fee on the member's invoice once the booking is confirmed."""
     if not b.fee or not b.member_id or b.invoice_id:
         return
-    from hubra.api.finance.services import InvoicesService
+    from hubra.core.contracts import SYSTEM, call
 
     today = _local_now().date()
-    invoice = InvoicesService.create(
-        {
-            "member_id": b.member_id,
-            "issued": today,
-            "due": max(today + timedelta(days=30), b.starts_at.date()),
-            "amount": b.fee,
-            "purpose": "other",
-            "description": f"Buchung {r.name}: {_day_label(b.starts_at)}"[:512],
-            "category_id": r.category_id,
-        },
-        actor_id,
+    # As the booking itself: whoever confirms it needn't hold invoice rights.
+    invoice = call(
+        "finance.invoice.create",
+        member_id=b.member_id,
+        issued=today,
+        due=max(today + timedelta(days=30), b.starts_at.date()),
+        amount=b.fee,
+        purpose="other",
+        description=f"Buchung {r.name}: {_day_label(b.starts_at)}"[:512],
+        category_id=r.category_id,
+        actor_id=actor_id,
+        actor=SYSTEM,
     )
-    b.invoice_id = invoice.id
+    b.invoice_id = invoice["id"]
 
 
 def _unbill(b: Booking, actor_id: int) -> None:
@@ -454,11 +455,11 @@ def _unbill(b: Booking, actor_id: int) -> None:
     invoice = db.session.get(Invoice, b.invoice_id)
     if invoice is None or invoice.status == "Paid":
         return
-    from hubra.api.finance.services import InvoiceService
+    from hubra.core.contracts import SYSTEM, call
 
     b.invoice_id = None
     db.session.flush()
-    InvoiceService.delete(invoice.id, actor_id)
+    call("finance.invoice.delete", invoice_id=invoice.id, actor_id=actor_id, actor=SYSTEM)
 
 
 def _approvers() -> list[int]:

@@ -36,5 +36,11 @@ module = Module(
     ),
     tables=("booking_resources", "booking_bookings"),
     # Inventory is optional: without it resources simply have no linked item.
-    consumes={"inventory.items.get": ">=1,<2", "inventory.items.list": ">=1,<2"},
+    # Fees go on invoices through Finance's contracts, not its services.
+    consumes={
+        "inventory.items.get": ">=1,<2",
+        "inventory.items.list": ">=1,<2",
+        "finance.invoice.create": ">=1,<2",
+        "finance.invoice.delete": ">=1,<2",
+    },
 )
