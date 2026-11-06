@@ -1,5 +1,12 @@
 # Booking
 
+## Unreleased
+
+- Inventory items are read through Inventory's contracts
+  (`inventory.items.get`, `inventory.items.list`) instead of its table. Without
+  Inventory, or with it switched off, resources simply have no linked item.
+  Needs Hubra with contracts (hubra-app/hubra#231).
+
 ## 1.0.0
 
 First version: rooms and equipment on a week calendar, overlaps refused,

@@ -35,4 +35,6 @@ module = Module(
         ),
     ),
     tables=("booking_resources", "booking_bookings"),
+    # Inventory is optional: without it resources simply have no linked item.
+    consumes={"inventory.items.get": ">=1,<2", "inventory.items.list": ">=1,<2"},
 )
