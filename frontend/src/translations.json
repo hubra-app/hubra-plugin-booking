@@ -125,7 +125,8 @@
         "notInInventory": "Not in the inventory",
         "outOfUse": "Out of use in the inventory",
         "hintInventory": "Rooms and equipment members can book. Equipment comes from the inventory: make an item bookable on its page there.",
-        "toInventory": "Open the inventory"
+        "toInventory": "Open the inventory",
+        "newRoom": "New room"
       },
       "item": {
         "panel": "Booking",
@@ -268,7 +269,8 @@
         "notInInventory": "Nicht im Inventar",
         "outOfUse": "Im Inventar ausser Betrieb",
         "hintInventory": "Räume und Geräte, die Mitglieder buchen können. Geräte kommen aus dem Inventar: mach einen Gegenstand auf seiner Seite dort reservierbar.",
-        "toInventory": "Zum Inventar"
+        "toInventory": "Zum Inventar",
+        "newRoom": "Neuer Raum"
       },
       "item": {
         "panel": "Reservationen",

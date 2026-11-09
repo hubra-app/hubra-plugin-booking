@@ -310,18 +310,18 @@ def test_a_deleted_item_switches_its_resource_off(client, db, club, inventory):
     assert r.active is False and r.inventory_item_id is None and r.name == "Laser"
 
 
-def test_without_inventory_resources_are_typed_in(client, club, monkeypatch):
-    from hubra.core.modules import registry
-
-    registry.load()
-    monkeypatch.delitem(registry._modules, "inventory", raising=False)
+def test_resources_keep_their_name_when_inventory_cannot_answer(
+    client, club, inventory, monkeypatch
+):
     _login(client, "kim@test.ch")
-    assert client.get(f"{BASE}/options").get_json()["inventory"] is False
-    assert client.get(f"{BASE}/inventory-items").get_json() == []
-    res = client.post(
-        f"{BASE}/resources", json={"name": "Anhänger", "kind": "equipment"}
-    )
-    assert res.status_code == 201
+    trailer = client.post(
+        f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 7}
+    ).get_json()
+    # Inventory's queries fail: the copy kept in Booking is shown instead.
+    monkeypatch.delitem(ITEMS, 7)
+    listed = client.get(f"{BASE}/resources").get_json()
+    assert [(r["id"], r["name"]) for r in listed] == [(trailer["id"], "Anhänger")]
+    assert listed[0]["inventoryItemName"] is None
 
 
 def test_the_item_page_panel_reads_its_resource(client, club, inventory):

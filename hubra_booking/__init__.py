@@ -23,7 +23,7 @@ module = Module(
     name="Booking",
     description="Rooms and equipment on a calendar",
     default_enabled=False,
-    depends_on=("members", "finance"),
+    depends_on=("inventory", "members", "finance"),
     blueprints=(
         Blueprint("hubra_booking.routes", "booking_bp", "/api/v1/app/booking"),
     ),
@@ -37,7 +37,7 @@ module = Module(
         ),
     ),
     tables=("booking_resources", "booking_bookings"),
-    # Inventory is optional: without it resources are typed in by hand.
+    # Equipment is an Inventory item, read through Inventory's contracts.
     # Fees go on invoices through Finance's contracts, not its services.
     consumes={
         "inventory.items.get": ">=1,<2",

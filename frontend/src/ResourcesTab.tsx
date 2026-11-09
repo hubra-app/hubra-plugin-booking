@@ -37,7 +37,7 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
           )}
         </Text>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing('new')}>
-          {t('booking.resources.new')}
+          {t(options?.inventory ? 'booking.resources.newRoom' : 'booking.resources.new')}
         </Button>
       </Group>
       {resources.error ? (
@@ -199,7 +199,8 @@ export function ResourceModal({
         </>
       }
     >
-      {!fixedItem && (
+      {/* With Inventory, new equipment is made bookable on the item's page; here only rooms. */}
+      {!fixedItem && !(options?.inventory && !resource) && (
       <Field label={t('booking.resources.kind')}>
         <SegmentedControl
           fullWidth

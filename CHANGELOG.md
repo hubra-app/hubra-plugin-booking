@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Booking now needs Inventory** (2.1 or newer) and is shown as its add-on:
+  `requires: [inventory, …]`, `depends: inventory`. New equipment is made
+  bookable on the item's page; Booking's own form adds rooms.
 - Equipment comes from the inventory: with the Inventory plugin running, a
   new equipment resource is picked from its items instead of typed in, and
   its name and place follow the item. Each item is at most one resource; a
