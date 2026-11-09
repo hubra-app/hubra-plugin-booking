@@ -10,6 +10,8 @@ POST   /resources                     {name, kind, description?, location?, colo
 PATCH  /resources/<id>                same fields, plus active, position
 DELETE /resources/<id>                only without bookings; else switch it off
 GET    /inventory-items               items of the Inventory plugin to pick from
+GET    /resources/by-item/<item_id>   the resource an inventory item is, for the
+                                      panel on the item's page ({resource, item, canManage})
 GET    /bookings?from=&to=&resourceId= the calendar: pending and confirmed slots
 GET    /bookings/mine                 the caller's bookings, upcoming and recent
 GET    /bookings/pending              waiting for approval (approvers)
@@ -367,6 +369,33 @@ def delete_resource(resource_id: int):
     db.session.delete(r)
     db.session.commit()
     return "", 204
+
+
+@booking_bp.get("/resources/by-item/<int:item_id>")
+@require_member
+def resource_by_item(item_id: int):
+    """What the panel on an inventory item's page shows: its resource, if the
+    item is one, and whether the caller may make it bookable or change it."""
+    member = get_current_member()
+    manager = _can(member, RESOURCES)
+    r = db.session.scalar(
+        select(BookingResource).where(BookingResource.inventory_item_id == item_id)
+    )
+    if r is not None and not r.active and not manager:
+        r = None
+    items = _inventory_items([item_id])
+    item = items.get(item_id)
+    return jsonify(
+        {
+            "resource": _resource(r, items) if r else None,
+            "item": (
+                {k: item.get(k) for k in ("id", "name", "location", "status")}
+                if item
+                else None
+            ),
+            "canManage": manager,
+        }
+    )
 
 
 @booking_bp.get("/inventory-items")

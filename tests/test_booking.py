@@ -322,3 +322,26 @@ def test_without_inventory_resources_are_typed_in(client, club, monkeypatch):
         f"{BASE}/resources", json={"name": "Anhänger", "kind": "equipment"}
     )
     assert res.status_code == 201
+
+
+def test_the_item_page_panel_reads_its_resource(client, club, inventory):
+    _login(client, "kim@test.ch")
+    empty = client.get(f"{BASE}/resources/by-item/9").get_json()
+    assert empty["resource"] is None and empty["canManage"] is True
+    assert empty["item"]["name"] == "Laser"
+    laser = client.post(
+        f"{BASE}/resources",
+        json={"kind": "equipment", "inventoryItemId": 9, "feePerHour": "12"},
+    ).get_json()
+    got = client.get(f"{BASE}/resources/by-item/9").get_json()
+    assert got["resource"]["id"] == laser["id"]
+
+    # Members see an active resource but may not change it; a switched-off
+    # one isn't shown to them.
+    _login(client, "max@test.ch")
+    seen = client.get(f"{BASE}/resources/by-item/9").get_json()
+    assert seen["resource"]["id"] == laser["id"] and seen["canManage"] is False
+    _login(client, "kim@test.ch")
+    client.patch(f"{BASE}/resources/{laser['id']}", json={"active": False})
+    _login(client, "max@test.ch")
+    assert client.get(f"{BASE}/resources/by-item/9").get_json()["resource"] is None

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Box, Button, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
 import { IconBuilding, IconPlus, IconTool } from '@tabler/icons-react'
@@ -17,13 +18,23 @@ function Dot({ color, size }: { color: string; size: number }) {
 export function ResourcesTab({ options }: { options: Options | undefined }) {
   const { t } = useT()
   const resources = useQuery({ queryKey: QK.resources(true), queryFn: () => listResources(true) })
+  const navigate = useNavigate()
   const [editing, setEditing] = useState<Resource | 'new' | null>(null)
+  // An inventory item's booking settings live on its page in the inventory.
+  const open = (r: Resource) => (r.inventoryItemId && options?.inventory ? navigate(`/app/inventory/${r.inventoryItemId}`) : setEditing(r))
 
   return (
     <Stack gap="md">
       <Group justify="space-between" wrap="wrap">
         <Text size="sm" c="dimmed">
-          {t(options?.inventory ? 'booking.resources.hintInventory' : 'booking.resources.hint')}
+          {options?.inventory ? (
+            <>
+              {t('booking.resources.hintInventory')}{' '}
+              <Link to="/app/inventory">{t('booking.resources.toInventory')}</Link>
+            </>
+          ) : (
+            t('booking.resources.hint')
+          )}
         </Text>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing('new')}>
           {t('booking.resources.new')}
@@ -38,7 +49,7 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
           {resources.data.map((r) => (
-            <Paper key={r.id} withBorder p="md" radius="md" style={{ cursor: 'pointer', opacity: r.active ? 1 : 0.6 }} onClick={() => setEditing(r)}>
+            <Paper key={r.id} withBorder p="md" radius="md" style={{ cursor: 'pointer', opacity: r.active ? 1 : 0.6 }} onClick={() => open(r)}>
               <Group justify="space-between" wrap="nowrap" align="flex-start">
                 <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
                   <Dot color={resourceColor(r)} size={12} />
@@ -92,17 +103,29 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
   )
 }
 
-function ResourceModal({ resource, options, onClose }: { resource: Resource | null; options: Options | undefined; onClose: () => void }) {
+/** Adds or changes a resource. With *fixedItem* it makes that inventory item
+ * bookable (the panel on the item's page). */
+export function ResourceModal({
+  resource,
+  options,
+  onClose,
+  fixedItem,
+}: {
+  resource: Resource | null
+  options: Options | undefined
+  onClose: () => void
+  fixedItem?: { id: number; name: string; location: string | null }
+}) {
   const { t } = useT()
   const qc = useQueryClient()
   const { busy, run } = useAction()
-  const items = useQuery({ queryKey: QK.items, queryFn: listInventoryItems, enabled: !!options?.inventory })
-  const [name, setName] = useState(resource?.name ?? '')
-  const [kind, setKind] = useState<Kind>(resource?.kind ?? 'room')
-  const [location, setLocation] = useState(resource?.location ?? '')
+  const items = useQuery({ queryKey: QK.items, queryFn: listInventoryItems, enabled: !!options?.inventory && !fixedItem })
+  const [name, setName] = useState(resource?.name ?? fixedItem?.name ?? '')
+  const [kind, setKind] = useState<Kind>(fixedItem ? 'equipment' : (resource?.kind ?? 'room'))
+  const [location, setLocation] = useState(resource?.location ?? fixedItem?.location ?? '')
   const [description, setDescription] = useState(resource?.description ?? '')
   const [color, setColor] = useState(resource?.color ?? 'violet')
-  const [itemId, setItemId] = useState<number | null>(resource?.inventoryItemId ?? null)
+  const [itemId, setItemId] = useState<number | null>(fixedItem?.id ?? resource?.inventoryItemId ?? null)
   const [needsApproval, setNeedsApproval] = useState(resource?.needsApproval ?? false)
   const [feeFlat, setFeeFlat] = useState<number | string>(resource?.feeFlat ?? '')
   const [feePerHour, setFeePerHour] = useState<number | string>(resource?.feePerHour ?? '')
@@ -113,13 +136,12 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
   const [deleting, setDeleting] = useState(false)
   // With Inventory running, equipment is an inventory item: its name and
   // place come from there. A room may be one too.
-  const fromInventory = !!options?.inventory && kind === 'equipment'
-  const item = items.data?.find((i) => i.id === itemId)
-  const itemOptions = (items.data ?? []).map((i) => {
-    const taken = i.resourceId != null && i.resourceId !== resource?.id
-    const label = [i.name, i.location ? `(${i.location})` : null, taken ? `· ${t('booking.resources.itemTaken')}` : null].filter(Boolean).join(' ')
-    return { value: String(i.id), label, disabled: taken }
-  })
+  const fromInventory = !fixedItem && !!options?.inventory && kind === 'equipment'
+  const item = fixedItem ?? items.data?.find((i) => i.id === itemId)
+  // Items that already are a resource aren't offered again.
+  const itemOptions = (items.data ?? [])
+    .filter((i) => i.resourceId == null || i.resourceId === resource?.id)
+    .map((i) => ({ value: String(i.id), label: [i.name, i.location ? `(${i.location})` : null].filter(Boolean).join(' ') }))
   const pickItem = (v: string | null) => {
     const id = v ? Number(v) : null
     setItemId(id)
@@ -163,7 +185,7 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
       title={resource ? t('booking.resources.edit') : t('booking.resources.new')}
       footer={
         <>
-          {resource && (
+          {resource && !fixedItem && (
             <Button color="red" variant="subtle" mr="auto" onClick={() => setDeleting(true)}>
               {t('booking.delete')}
             </Button>
@@ -177,6 +199,7 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
         </>
       }
     >
+      {!fixedItem && (
       <Field label={t('booking.resources.kind')}>
         <SegmentedControl
           fullWidth
@@ -188,7 +211,8 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
           ]}
         />
       </Field>
-      {fromInventory ? (
+      )}
+      {fixedItem ? null : fromInventory ? (
         <Field label={t('booking.resources.pickItem')} hint={t('booking.resources.pickItemHint')}>
           <Select
             aria-label={t('booking.resources.pickItem')}
@@ -238,7 +262,7 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
       <Field label={t('booking.resources.description')}>
         <Textarea value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
       </Field>
-      {options?.inventory && !fromInventory && (
+      {options?.inventory && !fromInventory && !fixedItem && (
         <Field label={t('booking.resources.item')} hint={t('booking.resources.itemHint')}>
           <Select aria-label={t('booking.resources.item')} data={itemOptions} value={itemId ? String(itemId) : null} onChange={pickItem} clearable searchable />
         </Field>

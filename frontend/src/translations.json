@@ -124,7 +124,21 @@
         "itemTaken": "already a resource",
         "notInInventory": "Not in the inventory",
         "outOfUse": "Out of use in the inventory",
-        "hintInventory": "Rooms and equipment members can book. Equipment comes from the inventory."
+        "hintInventory": "Rooms and equipment members can book. Equipment comes from the inventory: make an item bookable on its page there.",
+        "toInventory": "Open the inventory"
+      },
+      "item": {
+        "panel": "Booking",
+        "edit": "Edit",
+        "notBookable": "Members can't book this item yet.",
+        "makeBookable": "Make bookable",
+        "fee": "Fee",
+        "approval": "Approval",
+        "noApproval": "Booked straight away",
+        "limits": "Limits",
+        "maxHours": "at most {{n}} h",
+        "ahead": "up to {{n}} days ahead",
+        "calendar": "Open the calendar"
       }
     }
   },
@@ -253,7 +267,21 @@
         "itemTaken": "schon eine Ressource",
         "notInInventory": "Nicht im Inventar",
         "outOfUse": "Im Inventar ausser Betrieb",
-        "hintInventory": "Räume und Geräte, die Mitglieder buchen können. Geräte kommen aus dem Inventar."
+        "hintInventory": "Räume und Geräte, die Mitglieder buchen können. Geräte kommen aus dem Inventar: mach einen Gegenstand auf seiner Seite dort reservierbar.",
+        "toInventory": "Zum Inventar"
+      },
+      "item": {
+        "panel": "Reservationen",
+        "edit": "Bearbeiten",
+        "notBookable": "Mitglieder können diesen Gegenstand noch nicht reservieren.",
+        "makeBookable": "Reservierbar machen",
+        "fee": "Gebühr",
+        "approval": "Freigabe",
+        "noApproval": "Sofort gebucht",
+        "limits": "Grenzen",
+        "maxHours": "höchstens {{n}} h",
+        "ahead": "bis {{n}} Tage im Voraus",
+        "calendar": "Kalender öffnen"
       }
     }
   }

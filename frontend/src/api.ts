@@ -61,6 +61,7 @@ export const QK = {
   options: ['booking', 'options'] as const,
   resources: (all: boolean) => ['booking', 'resources', all] as const,
   items: ['booking', 'inventory-items'] as const,
+  byItem: (itemId: number) => ['booking', 'by-item', itemId] as const,
   calendar: (from: string, to: string) => ['booking', 'calendar', from, to] as const,
   mine: ['booking', 'mine'] as const,
   pending: ['booking', 'pending'] as const,
@@ -81,6 +82,8 @@ export interface InventoryItem {
   resourceId: number | null
 }
 
+export const getResourceByItem = (itemId: number) =>
+  apiFetch<{ resource: Resource | null; item: { id: number; name: string; location: string | null; status: string | null } | null; canManage: boolean }>(`${BASE}/resources/by-item/${itemId}`)
 export const listInventoryItems = () => apiFetch<InventoryItem[]>(`${BASE}/inventory-items`)
 
 /** Inventory statuses in which an item can't be booked. */

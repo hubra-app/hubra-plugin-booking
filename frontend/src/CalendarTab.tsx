@@ -35,6 +35,9 @@ export function CalendarTab({ options }: { options: Options | undefined }) {
   const phone = useMediaQuery('(max-width: 48em)')
   const resources = useQuery({ queryKey: QK.resources(false), queryFn: () => listResources() })
   const [picked, setPicked] = useState<number | null>(() => {
+    // ?resource=<id>: opened from an inventory item's page.
+    const asked = Number(new URLSearchParams(window.location.search).get('resource'))
+    if (asked) return asked
     try {
       return Number(localStorage.getItem('booking.resource')) || null
     } catch {
