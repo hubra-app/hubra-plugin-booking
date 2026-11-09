@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Box, Button, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
 import { IconBuilding, IconPlus, IconTool } from '@tabler/icons-react'
 import { ConfirmModal, EmptyState, ErrorBanner, Field, LoadingSpinner, Modal, useT } from '@hubra/plugin-sdk'
-import { QK, deleteResource, errorText, listInventoryItems, listResources, saveResource, type Kind, type Options, type Resource } from './api'
+import { OUT_OF_USE, QK, deleteResource, errorText, listInventoryItems, listResources, saveResource, type Kind, type Options, type Resource } from './api'
 import { CategoryField, chf, useAction } from './common'
 import { resourceColor } from './CalendarTab'
 
@@ -23,7 +23,7 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
     <Stack gap="md">
       <Group justify="space-between" wrap="wrap">
         <Text size="sm" c="dimmed">
-          {t('booking.resources.hint')}
+          {t(options?.inventory ? 'booking.resources.hintInventory' : 'booking.resources.hint')}
         </Text>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing('new')}>
           {t('booking.resources.new')}
@@ -56,7 +56,7 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
                   r.feeFlat || r.feePerHour
                     ? [r.feeFlat ? chf(r.feeFlat) : null, r.feePerHour ? t('booking.perHour', { amount: chf(r.feePerHour) }) : null].filter(Boolean).join(' + ')
                     : t('booking.free'),
-                  r.inventoryItemName ? t('booking.resources.linked', { name: r.inventoryItemName }) : null,
+                  r.inventoryItemName ? (r.inventoryItemName === r.name ? t('booking.resources.pickItem') : t('booking.resources.linked', { name: r.inventoryItemName })) : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')}
@@ -65,6 +65,16 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
                 {r.needsApproval && (
                   <Badge size="sm" variant="light" color="orange" style={{ textTransform: 'none' }}>
                     {t('booking.needsApproval')}
+                  </Badge>
+                )}
+                {options?.inventory && r.kind === 'equipment' && !r.inventoryItemId && (
+                  <Badge size="sm" variant="light" color="yellow" style={{ textTransform: 'none' }}>
+                    {t('booking.resources.notInInventory')}
+                  </Badge>
+                )}
+                {r.inventoryItemStatus && OUT_OF_USE.includes(r.inventoryItemStatus) && (
+                  <Badge size="sm" variant="light" color="red" style={{ textTransform: 'none' }}>
+                    {t('booking.resources.outOfUse')}
                   </Badge>
                 )}
                 {!r.active && (
@@ -101,6 +111,24 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
   const [advanceDays, setAdvanceDays] = useState<number | string>(resource?.advanceDays ?? '')
   const [active, setActive] = useState(resource?.active ?? true)
   const [deleting, setDeleting] = useState(false)
+  // With Inventory running, equipment is an inventory item: its name and
+  // place come from there. A room may be one too.
+  const fromInventory = !!options?.inventory && kind === 'equipment'
+  const item = items.data?.find((i) => i.id === itemId)
+  const itemOptions = (items.data ?? []).map((i) => {
+    const taken = i.resourceId != null && i.resourceId !== resource?.id
+    const label = [i.name, i.location ? `(${i.location})` : null, taken ? `· ${t('booking.resources.itemTaken')}` : null].filter(Boolean).join(' ')
+    return { value: String(i.id), label, disabled: taken }
+  })
+  const pickItem = (v: string | null) => {
+    const id = v ? Number(v) : null
+    setItemId(id)
+    const picked = items.data?.find((i) => i.id === id)
+    if (picked) {
+      setName(picked.name)
+      if (picked.location) setLocation(picked.location)
+    }
+  }
 
   const done = () => {
     qc.invalidateQueries({ queryKey: QK.all })
@@ -143,31 +171,43 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
           <Button variant="default" onClick={onClose}>
             {t('booking.cancel')}
           </Button>
-          <Button type="submit" loading={busy} disabled={!name.trim()}>
+          <Button type="submit" loading={busy} disabled={fromInventory ? !itemId : !name.trim()}>
             {t('booking.save')}
           </Button>
         </>
       }
     >
-      <Group grow align="flex-start">
-        <Field label={t('booking.resources.name')}>
-          <TextInput value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder={t('booking.resources.nameExample')} data-autofocus />
-        </Field>
-        <Field label={t('booking.resources.kind')}>
-          <SegmentedControl
-            fullWidth
-            value={kind}
-            onChange={(v) => setKind(v as Kind)}
-            data={[
-              { value: 'room', label: t('booking.kinds.room') },
-              { value: 'equipment', label: t('booking.kinds.equipment') },
-            ]}
+      <Field label={t('booking.resources.kind')}>
+        <SegmentedControl
+          fullWidth
+          value={kind}
+          onChange={(v) => setKind(v as Kind)}
+          data={[
+            { value: 'room', label: t('booking.kinds.room') },
+            { value: 'equipment', label: t('booking.kinds.equipment') },
+          ]}
+        />
+      </Field>
+      {fromInventory ? (
+        <Field label={t('booking.resources.pickItem')} hint={t('booking.resources.pickItemHint')}>
+          <Select
+            aria-label={t('booking.resources.pickItem')}
+            placeholder={t('booking.resources.pickItemPlaceholder')}
+            data={itemOptions}
+            value={itemId ? String(itemId) : null}
+            onChange={pickItem}
+            searchable
+            data-autofocus
           />
         </Field>
-      </Group>
+      ) : (
+        <Field label={t('booking.resources.name')}>
+          <TextInput value={item ? item.name : name} disabled={!!item} onChange={(e) => setName(e.currentTarget.value)} placeholder={t('booking.resources.nameExample')} data-autofocus />
+        </Field>
+      )}
       <Group grow align="flex-start">
         <Field label={t('booking.resources.location')}>
-          <TextInput value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+          <TextInput value={item?.location ? item.location : location} disabled={!!item?.location} onChange={(e) => setLocation(e.currentTarget.value)} />
         </Field>
         <Field label={t('booking.resources.color')}>
           <Group gap={6} mt={6}>
@@ -198,16 +238,9 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
       <Field label={t('booking.resources.description')}>
         <Textarea value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
       </Field>
-      {options?.inventory && (
+      {options?.inventory && !fromInventory && (
         <Field label={t('booking.resources.item')} hint={t('booking.resources.itemHint')}>
-          <Select
-            aria-label={t('booking.resources.item')}
-            data={(items.data ?? []).map((i) => ({ value: String(i.id), label: i.location ? `${i.name} (${i.location})` : i.name }))}
-            value={itemId ? String(itemId) : null}
-            onChange={(v) => setItemId(v ? Number(v) : null)}
-            clearable
-            searchable
-          />
+          <Select aria-label={t('booking.resources.item')} data={itemOptions} value={itemId ? String(itemId) : null} onChange={pickItem} clearable searchable />
         </Field>
       )}
       <Group grow align="flex-start">

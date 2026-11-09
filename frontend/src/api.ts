@@ -20,6 +20,7 @@ export interface Resource {
   color: string | null
   inventoryItemId: number | null
   inventoryItemName: string | null
+  inventoryItemStatus: string | null
   needsApproval: boolean
   feeFlat: number | null
   feePerHour: number | null
@@ -70,8 +71,20 @@ export const listResources = (all = false) => apiFetch<Resource[]>(`${BASE}/reso
 export const saveResource = (body: Record<string, unknown>, id?: number) =>
   apiFetch<Resource>(id ? `${BASE}/resources/${id}` : `${BASE}/resources`, json(id ? 'PATCH' : 'POST', body))
 export const deleteResource = (id: number) => apiFetch<void>(`${BASE}/resources/${id}`, { method: 'DELETE' })
-export const listInventoryItems = () =>
-  apiFetch<{ id: number; name: string; location: string | null }[]>(`${BASE}/inventory-items`)
+export interface InventoryItem {
+  id: number
+  name: string
+  location: string | null
+  category: string | null
+  status: string | null
+  /** The resource this item already is, if any. */
+  resourceId: number | null
+}
+
+export const listInventoryItems = () => apiFetch<InventoryItem[]>(`${BASE}/inventory-items`)
+
+/** Inventory statuses in which an item can't be booked. */
+export const OUT_OF_USE = ['maintenance', 'broken', 'lost', 'retired', 'archived']
 
 export const listCalendar = (from: string, to: string) =>
   apiFetch<Booking[]>(`${BASE}/bookings?from=${from}&to=${to}`)

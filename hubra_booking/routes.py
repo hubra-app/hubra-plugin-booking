@@ -5,9 +5,11 @@ GET    /resources?all=1               bookable resources (all: also inactive)
 POST   /resources                     {name, kind, description?, location?, color?,
                                        inventoryItemId?, needsApproval?, feeFlat?,
                                        feePerHour?, categoryId?, maxHours?, advanceDays?}
+                                      With Inventory running, equipment is an
+                                      inventory item (name and place come from it)
 PATCH  /resources/<id>                same fields, plus active, position
 DELETE /resources/<id>                only without bookings; else switch it off
-GET    /inventory-items               items of the Inventory plugin, to link
+GET    /inventory-items               items of the Inventory plugin to pick from
 GET    /bookings?from=&to=&resourceId= the calendar: pending and confirmed slots
 GET    /bookings/mine                 the caller's bookings, upcoming and recent
 GET    /bookings/pending              waiting for approval (approvers)
@@ -121,7 +123,8 @@ def _inventory_available() -> bool:
     return available(_GET_ITEMS)
 
 
-def _inventory_names(ids) -> dict[int, str]:
+def _inventory_items(ids) -> dict[int, dict]:
+    """The Inventory items with these ids that still exist, by id."""
     ids = sorted({i for i in ids if i})
     if not ids or not _inventory_available():
         return {}
@@ -129,19 +132,31 @@ def _inventory_names(ids) -> dict[int, str]:
         items = contract_query(_GET_ITEMS, ids=ids[:500], actor=SYSTEM)
     except (ActionUnavailable, ActionFailed):
         return {}
-    return {item["id"]: item["name"] for item in items}
+    return {item["id"]: dict(item) for item in items}
 
 
-def _resource(r: BookingResource, items: dict[int, str]) -> dict:
+# Inventory statuses in which a linked item can't be booked.
+_OUT_OF_USE = ("maintenance", "broken", "lost", "retired", "archived")
+
+
+def _name(r: BookingResource, items: dict[int, dict]) -> str:
+    """A linked item's own name; the copy kept here when it is unreachable."""
+    item = items.get(r.inventory_item_id or 0)
+    return item["name"] if item else r.name
+
+
+def _resource(r: BookingResource, items: dict[int, dict]) -> dict:
+    item = items.get(r.inventory_item_id or 0)
     return {
         "id": r.id,
-        "name": r.name,
+        "name": _name(r, items),
         "kind": r.kind,
         "description": r.description,
-        "location": r.location,
+        "location": (item.get("location") if item else None) or r.location,
         "color": r.color,
         "inventoryItemId": r.inventory_item_id,
-        "inventoryItemName": items.get(r.inventory_item_id or 0),
+        "inventoryItemName": item["name"] if item else None,
+        "inventoryItemStatus": item.get("status") if item else None,
         "needsApproval": r.needs_approval,
         "feeFlat": _num(r.fee_flat),
         "feePerHour": _num(r.fee_per_hour),
@@ -153,13 +168,15 @@ def _resource(r: BookingResource, items: dict[int, str]) -> dict:
     }
 
 
-def _booking(b: Booking, resources: dict, names: dict, viewer, manager: bool) -> dict:
+def _booking(
+    b: Booking, resources: dict, items: dict, names: dict, viewer, manager: bool
+) -> dict:
     mine = viewer is not None and b.member_id == viewer.id
     r = resources.get(b.resource_id)
     out = {
         "id": b.id,
         "resourceId": b.resource_id,
-        "resourceName": r.name if r else None,
+        "resourceName": _name(r, items) if r else None,
         "memberId": b.member_id,
         "memberName": names.get(b.member_id or 0),
         "title": b.title,
@@ -192,8 +209,9 @@ def _bookings(rows, viewer, manager: bool) -> list[dict]:
             )
         )
     }
+    items = _inventory_items(r.inventory_item_id for r in resources.values())
     names = _names(b.member_id for b in rows)
-    return [_booking(b, resources, names, viewer, manager) for b in rows]
+    return [_booking(b, resources, items, names, viewer, manager) for b in rows]
 
 
 # ── Options ──────────────────────────────────────────────────────────────────
@@ -230,13 +248,33 @@ def options():
 
 
 def _resource_fields(r: BookingResource, data: dict, creating: bool) -> None:
-    if creating or "name" in data:
-        r.name = _text(data, "name", 120, required=True)
     if creating or "kind" in data:
         kind = data.get("kind") or "room"
         if kind not in KINDS:
             raise Invalid("kind must be room or equipment")
         r.kind = kind
+    item = None
+    if creating or "inventoryItemId" in data:
+        item_id = _int(data, "inventoryItemId", 1, 2**31 - 1)
+        if item_id is not None:
+            item = _inventory_items([item_id]).get(item_id)
+            if item is None:
+                raise Invalid("inventoryItemId: no such inventory item")
+            taken = db.session.scalar(
+                select(BookingResource.id)
+                .where(BookingResource.inventory_item_id == item_id)
+                .where(BookingResource.id != (r.id or 0))
+                .limit(1)
+            )
+            if taken is not None:
+                raise Invalid("inventoryItemId: this item is already a resource")
+        r.inventory_item_id = item_id
+    elif r.inventory_item_id:
+        item = _inventory_items([r.inventory_item_id]).get(r.inventory_item_id)
+    # Equipment is what the club owns, so with Inventory running it is an
+    # inventory item, not a second list of things. Rooms may be either.
+    if r.kind == "equipment" and not r.inventory_item_id and _inventory_available():
+        raise Invalid("inventoryItemId: pick the equipment from the inventory")
     for key, attr, limit in (
         ("description", "description", 5000),
         ("location", "location", 200),
@@ -244,11 +282,14 @@ def _resource_fields(r: BookingResource, data: dict, creating: bool) -> None:
     ):
         if creating or key in data:
             setattr(r, attr, _text(data, key, limit))
-    if creating or "inventoryItemId" in data:
-        item = _int(data, "inventoryItemId", 1, 2**31 - 1)
-        if item is not None and item not in _inventory_names([item]):
-            raise Invalid("inventoryItemId: no such inventory item")
-        r.inventory_item_id = item
+    if item is not None:
+        # Name and place follow the item; the copy kept here is the fallback
+        # for when Inventory is off.
+        r.name = item["name"][:120]
+        if item.get("location"):
+            r.location = item["location"][:200]
+    elif creating or "name" in data:
+        r.name = _text(data, "name", 120, required=True)
     if creating or "needsApproval" in data:
         r.needs_approval = _bool(data, "needsApproval")
     if creating or "feeFlat" in data:
@@ -277,7 +318,7 @@ def list_resources():
     if not (request.args.get("all") and _can(member, RESOURCES)):
         query = query.where(BookingResource.active.is_(True))
     rows = list(db.session.scalars(query))
-    items = _inventory_names(r.inventory_item_id for r in rows)
+    items = _inventory_items(r.inventory_item_id for r in rows)
     return jsonify([_resource(r, items) for r in rows])
 
 
@@ -292,7 +333,7 @@ def create_resource():
     db.session.flush()
     log_audit(member.id, "booking.resource.create", "BookingResource", r.id, r.name)
     db.session.commit()
-    return jsonify(_resource(r, _inventory_names([r.inventory_item_id]))), 201
+    return jsonify(_resource(r, _inventory_items([r.inventory_item_id]))), 201
 
 
 @booking_bp.patch("/resources/<int:resource_id>")
@@ -305,7 +346,7 @@ def update_resource(resource_id: int):
     _resource_fields(r, _body(), creating=False)
     log_audit(member.id, "booking.resource.update", "BookingResource", r.id, r.name)
     db.session.commit()
-    return jsonify(_resource(r, _inventory_names([r.inventory_item_id])))
+    return jsonify(_resource(r, _inventory_items([r.inventory_item_id])))
 
 
 @booking_bp.delete("/resources/<int:resource_id>")
@@ -331,14 +372,38 @@ def delete_resource(resource_id: int):
 @booking_bp.get("/inventory-items")
 @permission_required("resources", "update", "Add and change bookable resources")
 def inventory_items():
+    """Inventory items to pick a resource from; ``resourceId`` marks the ones
+    that already are one."""
     if not available(_LIST_ITEMS):
         return jsonify([])
     try:
-        items = contract_query(_LIST_ITEMS, limit=500, actor=SYSTEM)
+        items = contract_query(
+            _LIST_ITEMS,
+            search=request.args.get("search") or None,
+            limit=500,
+            actor=SYSTEM,
+        )
     except (ActionUnavailable, ActionFailed):
         return jsonify([])
+    linked = dict(
+        db.session.execute(
+            select(BookingResource.inventory_item_id, BookingResource.id).where(
+                BookingResource.inventory_item_id.is_not(None)
+            )
+        ).all()
+    )
     return jsonify(
-        [{"id": i["id"], "name": i["name"], "location": i["location"]} for i in items]
+        [
+            {
+                "id": i["id"],
+                "name": i["name"],
+                "location": i.get("location"),
+                "category": i.get("category"),
+                "status": i.get("status"),
+                "resourceId": linked.get(i["id"]),
+            }
+            for i in items
+        ]
     )
 
 
@@ -459,7 +524,9 @@ def _unbill(b: Booking, actor_id: int) -> None:
 
     b.invoice_id = None
     db.session.flush()
-    call("finance.invoice.delete", invoice_id=invoice.id, actor_id=actor_id, actor=SYSTEM)
+    call(
+        "finance.invoice.delete", invoice_id=invoice.id, actor_id=actor_id, actor=SYSTEM
+    )
 
 
 def _approvers() -> list[int]:
@@ -490,6 +557,14 @@ def create_booking():
     )
     if r is None or (not r.active and not manager):
         return api_error("NOT_FOUND", "no such resource", 404)
+    if r.inventory_item_id and _inventory_available():
+        item = _inventory_items([r.inventory_item_id]).get(r.inventory_item_id)
+        if item is None or item.get("status") in _OUT_OF_USE:
+            return api_error(
+                "RESOURCE_OUT_OF_USE",
+                f"{r.name} is out of use in the inventory right now",
+                409,
+            )
     start = _when(data.get("startsAt"), "startsAt")
     end = _when(data.get("endsAt"), "endsAt")
     if end <= start:

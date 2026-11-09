@@ -106,7 +106,7 @@
         "color": "Colour",
         "description": "Description and rules",
         "item": "Inventory item",
-        "itemHint": "Links it to an item of the inventory.",
+        "itemHint": "Optional: a room that is also in the inventory.",
         "linked": "Inventory: {{name}}",
         "feeFlat": "Fee per booking",
         "feePerHour": "Fee per hour",
@@ -117,7 +117,14 @@
         "needsApproval": "Bookings need approval by the board",
         "active": "Can be booked",
         "off": "Switched off",
-        "deleteTitle": "Delete resource?"
+        "deleteTitle": "Delete resource?",
+        "pickItem": "From the inventory",
+        "pickItemHint": "Equipment comes from the inventory; its name and place follow the item.",
+        "pickItemPlaceholder": "Pick an item",
+        "itemTaken": "already a resource",
+        "notInInventory": "Not in the inventory",
+        "outOfUse": "Out of use in the inventory",
+        "hintInventory": "Rooms and equipment members can book. Equipment comes from the inventory."
       }
     }
   },
@@ -228,7 +235,7 @@
         "color": "Farbe",
         "description": "Beschreibung und Regeln",
         "item": "Inventar-Gegenstand",
-        "itemHint": "Verknüpft sie mit einem Gegenstand im Inventar.",
+        "itemHint": "Optional: ein Raum, der auch im Inventar steht.",
         "linked": "Inventar: {{name}}",
         "feeFlat": "Gebühr pro Buchung",
         "feePerHour": "Gebühr pro Stunde",
@@ -239,7 +246,14 @@
         "needsApproval": "Buchungen brauchen eine Freigabe vom Vorstand",
         "active": "Buchbar",
         "off": "Ausgeschaltet",
-        "deleteTitle": "Ressource löschen?"
+        "deleteTitle": "Ressource löschen?",
+        "pickItem": "Aus dem Inventar",
+        "pickItemHint": "Geräte kommen aus dem Inventar; Name und Ort folgen dem Gegenstand.",
+        "pickItemPlaceholder": "Gegenstand wählen",
+        "itemTaken": "schon eine Ressource",
+        "notInInventory": "Nicht im Inventar",
+        "outOfUse": "Im Inventar ausser Betrieb",
+        "hintInventory": "Räume und Geräte, die Mitglieder buchen können. Geräte kommen aus dem Inventar."
       }
     }
   }

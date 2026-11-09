@@ -1,7 +1,9 @@
 """Booking: rooms and equipment on a calendar.
 
 - Resources are rooms (the clubhouse, a workshop) or equipment (a trailer,
-  a laser cutter). A resource can point to an item of the Inventory plugin.
+  a laser cutter). With the Inventory plugin running, equipment is picked
+  from its items (name and place come from the item); a room may be one too.
+  A deleted item's resource is switched off.
 - Members book a slot. Overlapping bookings are refused.
 - A resource can need approval: the booking waits until someone with
   ``booking.bookings.update`` approves it.
@@ -35,12 +37,14 @@ module = Module(
         ),
     ),
     tables=("booking_resources", "booking_bookings"),
-    # Inventory is optional: without it resources simply have no linked item.
+    # Inventory is optional: without it resources are typed in by hand.
     # Fees go on invoices through Finance's contracts, not its services.
     consumes={
         "inventory.items.get": ">=1,<2",
         "inventory.items.list": ">=1,<2",
+        "inventory.item.deleted": ">=1,<2",
         "finance.invoice.create": ">=1,<2",
         "finance.invoice.delete": ">=1,<2",
     },
+    events={"inventory.item.deleted": "hubra_booking.hooks:on_item_deleted"},
 )

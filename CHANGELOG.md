@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Equipment comes from the inventory: with the Inventory plugin running, a
+  new equipment resource is picked from its items instead of typed in, and
+  its name and place follow the item. Each item is at most one resource; a
+  room may be linked to an item too. Items out of use (maintenance, broken,
+  lost, retired, archived) can't be booked, and a deleted item switches its
+  resource off (event `inventory.item.deleted`). Without Inventory,
+  resources are typed in as before.
 - Inventory items are read through Inventory's contracts
   (`inventory.items.get`, `inventory.items.list`) instead of its table. Without
   Inventory, or with it switched off, resources simply have no linked item.
