@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Box, Button, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
 import { IconBuilding, IconPlus, IconTool } from '@tabler/icons-react'
 import { ConfirmModal, EmptyState, ErrorBanner, Field, LoadingSpinner, Modal, useT } from '@hubra/plugin-sdk'
-import { QK, deleteResource, errorText, listInventoryItems, listResources, saveResource, type Kind, type Options, type Resource } from './api'
+import { OUT_OF_USE, QK, deleteResource, errorText, listInventoryItems, listResources, saveResource, type Kind, type Options, type Resource } from './api'
 import { CategoryField, chf, useAction } from './common'
 import { resourceColor } from './CalendarTab'
 
@@ -17,16 +18,26 @@ function Dot({ color, size }: { color: string; size: number }) {
 export function ResourcesTab({ options }: { options: Options | undefined }) {
   const { t } = useT()
   const resources = useQuery({ queryKey: QK.resources(true), queryFn: () => listResources(true) })
+  const navigate = useNavigate()
   const [editing, setEditing] = useState<Resource | 'new' | null>(null)
+  // An inventory item's booking settings live on its page in the inventory.
+  const open = (r: Resource) => (r.inventoryItemId && options?.inventory ? navigate(`/app/inventory/${r.inventoryItemId}`) : setEditing(r))
 
   return (
     <Stack gap="md">
       <Group justify="space-between" wrap="wrap">
         <Text size="sm" c="dimmed">
-          {t('booking.resources.hint')}
+          {options?.inventory ? (
+            <>
+              {t('booking.resources.hintInventory')}{' '}
+              <Link to="/app/inventory">{t('booking.resources.toInventory')}</Link>
+            </>
+          ) : (
+            t('booking.resources.hint')
+          )}
         </Text>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing('new')}>
-          {t('booking.resources.new')}
+          {t(options?.inventory ? 'booking.resources.newRoom' : 'booking.resources.new')}
         </Button>
       </Group>
       {resources.error ? (
@@ -38,7 +49,7 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
           {resources.data.map((r) => (
-            <Paper key={r.id} withBorder p="md" radius="md" style={{ cursor: 'pointer', opacity: r.active ? 1 : 0.6 }} onClick={() => setEditing(r)}>
+            <Paper key={r.id} withBorder p="md" radius="md" style={{ cursor: 'pointer', opacity: r.active ? 1 : 0.6 }} onClick={() => open(r)}>
               <Group justify="space-between" wrap="nowrap" align="flex-start">
                 <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
                   <Dot color={resourceColor(r)} size={12} />
@@ -56,7 +67,7 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
                   r.feeFlat || r.feePerHour
                     ? [r.feeFlat ? chf(r.feeFlat) : null, r.feePerHour ? t('booking.perHour', { amount: chf(r.feePerHour) }) : null].filter(Boolean).join(' + ')
                     : t('booking.free'),
-                  r.inventoryItemName ? t('booking.resources.linked', { name: r.inventoryItemName }) : null,
+                  r.inventoryItemName ? (r.inventoryItemName === r.name ? t('booking.resources.pickItem') : t('booking.resources.linked', { name: r.inventoryItemName })) : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')}
@@ -65,6 +76,16 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
                 {r.needsApproval && (
                   <Badge size="sm" variant="light" color="orange" style={{ textTransform: 'none' }}>
                     {t('booking.needsApproval')}
+                  </Badge>
+                )}
+                {options?.inventory && r.kind === 'equipment' && !r.inventoryItemId && (
+                  <Badge size="sm" variant="light" color="yellow" style={{ textTransform: 'none' }}>
+                    {t('booking.resources.notInInventory')}
+                  </Badge>
+                )}
+                {r.inventoryItemStatus && OUT_OF_USE.includes(r.inventoryItemStatus) && (
+                  <Badge size="sm" variant="light" color="red" style={{ textTransform: 'none' }}>
+                    {t('booking.resources.outOfUse')}
                   </Badge>
                 )}
                 {!r.active && (
@@ -82,17 +103,29 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
   )
 }
 
-function ResourceModal({ resource, options, onClose }: { resource: Resource | null; options: Options | undefined; onClose: () => void }) {
+/** Adds or changes a resource. With *fixedItem* it makes that inventory item
+ * bookable (the panel on the item's page). */
+export function ResourceModal({
+  resource,
+  options,
+  onClose,
+  fixedItem,
+}: {
+  resource: Resource | null
+  options: Options | undefined
+  onClose: () => void
+  fixedItem?: { id: number; name: string; location: string | null }
+}) {
   const { t } = useT()
   const qc = useQueryClient()
   const { busy, run } = useAction()
-  const items = useQuery({ queryKey: QK.items, queryFn: listInventoryItems, enabled: !!options?.inventory })
-  const [name, setName] = useState(resource?.name ?? '')
-  const [kind, setKind] = useState<Kind>(resource?.kind ?? 'room')
-  const [location, setLocation] = useState(resource?.location ?? '')
+  const items = useQuery({ queryKey: QK.items, queryFn: listInventoryItems, enabled: !!options?.inventory && !fixedItem })
+  const [name, setName] = useState(resource?.name ?? fixedItem?.name ?? '')
+  const [kind, setKind] = useState<Kind>(fixedItem ? 'equipment' : (resource?.kind ?? 'room'))
+  const [location, setLocation] = useState(resource?.location ?? fixedItem?.location ?? '')
   const [description, setDescription] = useState(resource?.description ?? '')
   const [color, setColor] = useState(resource?.color ?? 'violet')
-  const [itemId, setItemId] = useState<number | null>(resource?.inventoryItemId ?? null)
+  const [itemId, setItemId] = useState<number | null>(fixedItem?.id ?? resource?.inventoryItemId ?? null)
   const [needsApproval, setNeedsApproval] = useState(resource?.needsApproval ?? false)
   const [feeFlat, setFeeFlat] = useState<number | string>(resource?.feeFlat ?? '')
   const [feePerHour, setFeePerHour] = useState<number | string>(resource?.feePerHour ?? '')
@@ -101,6 +134,23 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
   const [advanceDays, setAdvanceDays] = useState<number | string>(resource?.advanceDays ?? '')
   const [active, setActive] = useState(resource?.active ?? true)
   const [deleting, setDeleting] = useState(false)
+  // With Inventory running, equipment is an inventory item: its name and
+  // place come from there. A room may be one too.
+  const fromInventory = !fixedItem && !!options?.inventory && kind === 'equipment'
+  const item = fixedItem ?? items.data?.find((i) => i.id === itemId)
+  // Items that already are a resource aren't offered again.
+  const itemOptions = (items.data ?? [])
+    .filter((i) => i.resourceId == null || i.resourceId === resource?.id)
+    .map((i) => ({ value: String(i.id), label: [i.name, i.location ? `(${i.location})` : null].filter(Boolean).join(' ') }))
+  const pickItem = (v: string | null) => {
+    const id = v ? Number(v) : null
+    setItemId(id)
+    const picked = items.data?.find((i) => i.id === id)
+    if (picked) {
+      setName(picked.name)
+      if (picked.location) setLocation(picked.location)
+    }
+  }
 
   const done = () => {
     qc.invalidateQueries({ queryKey: QK.all })
@@ -135,7 +185,7 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
       title={resource ? t('booking.resources.edit') : t('booking.resources.new')}
       footer={
         <>
-          {resource && (
+          {resource && !fixedItem && (
             <Button color="red" variant="subtle" mr="auto" onClick={() => setDeleting(true)}>
               {t('booking.delete')}
             </Button>
@@ -143,31 +193,46 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
           <Button variant="default" onClick={onClose}>
             {t('booking.cancel')}
           </Button>
-          <Button type="submit" loading={busy} disabled={!name.trim()}>
+          <Button type="submit" loading={busy} disabled={fromInventory ? !itemId : !name.trim()}>
             {t('booking.save')}
           </Button>
         </>
       }
     >
-      <Group grow align="flex-start">
-        <Field label={t('booking.resources.name')}>
-          <TextInput value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder={t('booking.resources.nameExample')} data-autofocus />
-        </Field>
-        <Field label={t('booking.resources.kind')}>
-          <SegmentedControl
-            fullWidth
-            value={kind}
-            onChange={(v) => setKind(v as Kind)}
-            data={[
-              { value: 'room', label: t('booking.kinds.room') },
-              { value: 'equipment', label: t('booking.kinds.equipment') },
-            ]}
+      {/* With Inventory, new equipment is made bookable on the item's page; here only rooms. */}
+      {!fixedItem && !(options?.inventory && !resource) && (
+      <Field label={t('booking.resources.kind')}>
+        <SegmentedControl
+          fullWidth
+          value={kind}
+          onChange={(v) => setKind(v as Kind)}
+          data={[
+            { value: 'room', label: t('booking.kinds.room') },
+            { value: 'equipment', label: t('booking.kinds.equipment') },
+          ]}
+        />
+      </Field>
+      )}
+      {fixedItem ? null : fromInventory ? (
+        <Field label={t('booking.resources.pickItem')} hint={t('booking.resources.pickItemHint')}>
+          <Select
+            aria-label={t('booking.resources.pickItem')}
+            placeholder={t('booking.resources.pickItemPlaceholder')}
+            data={itemOptions}
+            value={itemId ? String(itemId) : null}
+            onChange={pickItem}
+            searchable
+            data-autofocus
           />
         </Field>
-      </Group>
+      ) : (
+        <Field label={t('booking.resources.name')}>
+          <TextInput value={item ? item.name : name} disabled={!!item} onChange={(e) => setName(e.currentTarget.value)} placeholder={t('booking.resources.nameExample')} data-autofocus />
+        </Field>
+      )}
       <Group grow align="flex-start">
         <Field label={t('booking.resources.location')}>
-          <TextInput value={location} onChange={(e) => setLocation(e.currentTarget.value)} />
+          <TextInput value={item?.location ? item.location : location} disabled={!!item?.location} onChange={(e) => setLocation(e.currentTarget.value)} />
         </Field>
         <Field label={t('booking.resources.color')}>
           <Group gap={6} mt={6}>
@@ -198,16 +263,9 @@ function ResourceModal({ resource, options, onClose }: { resource: Resource | nu
       <Field label={t('booking.resources.description')}>
         <Textarea value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
       </Field>
-      {options?.inventory && (
+      {options?.inventory && !fromInventory && !fixedItem && (
         <Field label={t('booking.resources.item')} hint={t('booking.resources.itemHint')}>
-          <Select
-            aria-label={t('booking.resources.item')}
-            data={(items.data ?? []).map((i) => ({ value: String(i.id), label: i.location ? `${i.name} (${i.location})` : i.name }))}
-            value={itemId ? String(itemId) : null}
-            onChange={(v) => setItemId(v ? Number(v) : null)}
-            clearable
-            searchable
-          />
+          <Select aria-label={t('booking.resources.item')} data={itemOptions} value={itemId ? String(itemId) : null} onChange={pickItem} clearable searchable />
         </Field>
       )}
       <Group grow align="flex-start">

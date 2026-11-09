@@ -8,9 +8,13 @@ homepage: https://github.com/hubra-app/hubra-plugin-booking
 tags: [booking, rooms, equipment, calendar, makerspace]
 package: hubra_booking
 modules: [booking]
-requires: [members, finance]
+requires: [inventory, members, finance]
+# An add-on of Inventory: equipment is an inventory item, made bookable on
+# its page there (slot inventory.item).
+depends:
+  inventory: ">=2.1,<3"
 migrations: migrations
 frontend: frontend/dist/plugin.js
 # The areas this plugin extends; Hubra refuses a plugin that touches one it
 # doesn't list. See docs/plugins.md in hubra-app/hubra.
-uses: [routes, tables, nav, frontend, contracts]
+uses: [routes, tables, events, nav, frontend, contracts]

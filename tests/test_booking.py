@@ -117,22 +117,23 @@ def test_overlaps_are_refused_and_a_fee_is_invoiced(client, db, club):
 
 def test_approval_and_weekly_series(client, db, club):
     _login(client, "kim@test.ch")
-    trailer = client.post(
+    meeting_room = client.post(
         f"{BASE}/resources",
-        json={"name": "Anhänger", "kind": "equipment", "needsApproval": True},
+        json={"name": "Sitzungszimmer", "kind": "room", "needsApproval": True},
     ).get_json()
 
     _login(client, "max@test.ch")
     asked = client.post(
         f"{BASE}/bookings",
-        json={"resourceId": trailer["id"], "title": "Umzug", **_slot(5, 9, 12)},
+        json={"resourceId": meeting_room["id"], "title": "Umzug", **_slot(5, 9, 12)},
     ).get_json()
     assert asked["status"] == "pending" and asked["invoiceId"] is None
     # A pending request already blocks the slot.
     _login(client, "lea@test.ch")
     assert (
         client.post(
-            f"{BASE}/bookings", json={"resourceId": trailer["id"], **_slot(5, 10, 11)}
+            f"{BASE}/bookings",
+            json={"resourceId": meeting_room["id"], **_slot(5, 10, 11)},
         ).status_code
         == 409
     )
@@ -158,7 +159,7 @@ def test_approval_and_weekly_series(client, db, club):
     series = client.post(
         f"{BASE}/bookings",
         json={
-            "resourceId": trailer["id"],
+            "resourceId": meeting_room["id"],
             "memberId": club["lea"],
             "repeatWeeks": 3,
             **_slot(1, 17, 19),
@@ -173,7 +174,7 @@ def test_approval_and_weekly_series(client, db, club):
         client.post(
             f"{BASE}/bookings",
             json={
-                "resourceId": trailer["id"],
+                "resourceId": meeting_room["id"],
                 "memberId": club["lea"],
                 **_slot(2, 8, 9),
             },
@@ -192,18 +193,23 @@ def test_approval_and_weekly_series(client, db, club):
 
 # ── Inventory, through its contracts ────────────────────────────────────────
 
-ITEMS = {7: ("Anhänger", "Hof"), 9: ("Laser", "Werkstatt")}
+ITEMS = {
+    7: {"name": "Anhänger", "location": "Hof", "status": "available"},
+    9: {"name": "Laser", "location": "Werkstatt", "status": "available"},
+    11: {"name": "Bohrmaschine", "location": None, "status": "broken"},
+}
+
+
+def _item(i):
+    return {"id": i, "category": "Tool", **ITEMS[i]}
 
 
 def _inv_get(ctx, data):
-    return [{"id": i, "name": ITEMS[i][0]} for i in data["ids"] if i in ITEMS]
+    return [_item(i) for i in data["ids"] if i in ITEMS]
 
 
 def _inv_list(ctx, data):
-    return [
-        {"id": i, "name": name, "location": where}
-        for i, (name, where) in sorted(ITEMS.items())
-    ]
+    return [_item(i) for i in sorted(ITEMS)]
 
 
 @pytest.fixture
@@ -222,34 +228,120 @@ def inventory(app, monkeypatch):
         ),
     )
     monkeypatch.setitem(registry._modules, "inventory", fake)
+    monkeypatch.setitem(ITEMS, 7, dict(ITEMS[7]))
     set_modules(True, "inventory")
     return fake
 
 
-def test_resources_link_inventory_items_through_its_queries(client, club, inventory):
+def test_equipment_is_picked_from_the_inventory(client, club, inventory):
     _login(client, "kim@test.ch")
     assert client.get(f"{BASE}/options").get_json()["inventory"] is True
     items = client.get(f"{BASE}/inventory-items").get_json()
-    assert [i["name"] for i in items] == ["Anhänger", "Laser"]
+    assert [i["name"] for i in items] == ["Anhänger", "Laser", "Bohrmaschine"]
+    assert all(i["resourceId"] is None for i in items)
 
+    # Equipment typed in by hand is refused while Inventory runs.
+    typed = client.post(
+        f"{BASE}/resources", json={"name": "Anhänger", "kind": "equipment"}
+    )
+    assert typed.status_code == 400, typed.get_json()
+
+    # Picked from the inventory: name and place come from the item.
     res = client.post(
-        f"{BASE}/resources",
-        json={"name": "Anhänger", "kind": "equipment", "inventoryItemId": 7},
+        f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 7}
     )
     assert res.status_code == 201, res.get_json()
-    assert res.get_json()["inventoryItemName"] == "Anhänger"
+    trailer = res.get_json()
+    assert trailer["name"] == "Anhänger" and trailer["location"] == "Hof"
+    assert trailer["inventoryItemName"] == "Anhänger"
+
+    # One item is one resource.
+    again = client.post(
+        f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 7}
+    )
+    assert again.status_code == 400
+    items = client.get(f"{BASE}/inventory-items").get_json()
+    assert {i["id"]: i["resourceId"] for i in items}[7] == trailer["id"]
+
     bad = client.post(
-        f"{BASE}/resources",
-        json={"name": "Nichts", "kind": "equipment", "inventoryItemId": 99},
+        f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 99}
     )
     assert bad.status_code == 400
 
+    # A renamed item shows its new name, in the list and on bookings.
+    ITEMS[7]["name"] = "Veloanhänger"
+    listed = client.get(f"{BASE}/resources").get_json()
+    assert [r["name"] for r in listed] == ["Veloanhänger"]
+    b = client.post(
+        f"{BASE}/bookings", json={"resourceId": trailer["id"], **_slot(2, 9, 11)}
+    )
+    assert b.status_code == 201 and b.get_json()["resourceName"] == "Veloanhänger"
 
-def test_without_inventory_resources_have_no_items(client, club, monkeypatch):
-    from hubra.core.modules import registry
+    # Rooms may still be typed in.
+    room = client.post(f"{BASE}/resources", json={"name": "Clubhaus", "kind": "room"})
+    assert room.status_code == 201
 
-    registry.load()
-    monkeypatch.delitem(registry._modules, "inventory", raising=False)
+
+def test_items_out_of_use_cannot_be_booked(client, club, inventory):
     _login(client, "kim@test.ch")
-    assert client.get(f"{BASE}/options").get_json()["inventory"] is False
-    assert client.get(f"{BASE}/inventory-items").get_json() == []
+    drill = client.post(
+        f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 11}
+    ).get_json()
+    assert drill["inventoryItemStatus"] == "broken"
+    _login(client, "max@test.ch")
+    b = client.post(
+        f"{BASE}/bookings", json={"resourceId": drill["id"], **_slot(2, 9, 11)}
+    )
+    assert b.status_code == 409
+    assert b.get_json()["error"] == "RESOURCE_OUT_OF_USE"
+
+
+def test_a_deleted_item_switches_its_resource_off(client, db, club, inventory):
+    from hubra_booking.hooks import on_item_deleted
+    from hubra_booking.models import BookingResource
+
+    _login(client, "kim@test.ch")
+    laser = client.post(
+        f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 9}
+    ).get_json()
+    on_item_deleted(None, 9)
+    db.session.commit()
+    r = db.session.get(BookingResource, laser["id"])
+    assert r.active is False and r.inventory_item_id is None and r.name == "Laser"
+
+
+def test_resources_keep_their_name_when_inventory_cannot_answer(
+    client, club, inventory, monkeypatch
+):
+    _login(client, "kim@test.ch")
+    trailer = client.post(
+        f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 7}
+    ).get_json()
+    # Inventory's queries fail: the copy kept in Booking is shown instead.
+    monkeypatch.delitem(ITEMS, 7)
+    listed = client.get(f"{BASE}/resources").get_json()
+    assert [(r["id"], r["name"]) for r in listed] == [(trailer["id"], "Anhänger")]
+    assert listed[0]["inventoryItemName"] is None
+
+
+def test_the_item_page_panel_reads_its_resource(client, club, inventory):
+    _login(client, "kim@test.ch")
+    empty = client.get(f"{BASE}/resources/by-item/9").get_json()
+    assert empty["resource"] is None and empty["canManage"] is True
+    assert empty["item"]["name"] == "Laser"
+    laser = client.post(
+        f"{BASE}/resources",
+        json={"kind": "equipment", "inventoryItemId": 9, "feePerHour": "12"},
+    ).get_json()
+    got = client.get(f"{BASE}/resources/by-item/9").get_json()
+    assert got["resource"]["id"] == laser["id"]
+
+    # Members see an active resource but may not change it; a switched-off
+    # one isn't shown to them.
+    _login(client, "max@test.ch")
+    seen = client.get(f"{BASE}/resources/by-item/9").get_json()
+    assert seen["resource"]["id"] == laser["id"] and seen["canManage"] is False
+    _login(client, "kim@test.ch")
+    client.patch(f"{BASE}/resources/{laser['id']}", json={"active": False})
+    _login(client, "max@test.ch")
+    assert client.get(f"{BASE}/resources/by-item/9").get_json()["resource"] is None
