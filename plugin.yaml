@@ -1,7 +1,7 @@
 id: booking
 name: Booking
-version: "1.0.0"
-hubra: ">=0.2,<1"
+version: "1.1.0"
+hubra: ">=0.2.5,<1"
 description: "Rooms and equipment on a calendar: members book a slot, the system refuses overlaps, the board approves where needed, and a fee goes on the member's invoice."
 author: Hubra
 homepage: https://github.com/hubra-app/hubra-plugin-booking
