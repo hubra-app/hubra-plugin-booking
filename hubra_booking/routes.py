@@ -19,6 +19,8 @@ POST   /bookings                      {resourceId, startsAt, endsAt, title?, not
                                        memberId? and repeatWeeks? (approvers)}
 POST   /bookings/<id>/decide          {approve, note?}
 POST   /bookings/<id>/cancel          {series?}: own before it starts, or approvers
+
+Vor Ort (/onsite...): see onsite.py.
 """
 
 from __future__ import annotations
@@ -86,7 +88,7 @@ def _invalid(exc: Invalid):
 def _zone() -> ZoneInfo:
     try:
         return ZoneInfo(current_app.config.get("MAIL_TIMEZONE") or "Europe/Zurich")
-    except Exception:  # noqa: BLE001 - a bad setting falls back
+    except Exception:
         return ZoneInfo("Europe/Zurich")
 
 
@@ -768,3 +770,9 @@ def cancel(booking_id: int):
     log_audit(member.id, "booking.cancel", "Booking", b.id, f"{r.name} x{len(rows)}")
     db.session.commit()
     return jsonify({"cancelled": [x.id for x in rows]})
+
+
+# Vor Ort: members say on which days they'll be in a room.
+from . import onsite as _onsite
+
+_onsite.register(booking_bp)

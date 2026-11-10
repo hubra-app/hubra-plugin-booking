@@ -16,6 +16,7 @@
       "desc": "Rooms and equipment on a calendar.",
       "tabs": {
         "calendar": "Calendar",
+        "onsite": "Onsite",
         "mine": "My bookings",
         "requests": "Requests",
         "resources": "Resources"
@@ -140,6 +141,46 @@
         "maxHours": "at most {{n}} h",
         "ahead": "up to {{n}} days ahead",
         "calendar": "Open the calendar"
+      },
+      "onsite": {
+        "noRooms": "No rooms yet",
+        "noRoomsHint": "Rooms added under Resources show up here.",
+        "intro": "Say on which days you'll be in a room, so others can come on the same days. Nothing is reserved: anyone can come.",
+        "status": {
+          "going": "Coming",
+          "maybe": "Maybe",
+          "here": "I'm here"
+        },
+        "key": "Brings the key",
+        "noKey": "No key yet",
+        "me": "Me",
+        "meToo": "Me too",
+        "imHere": "I'm here",
+        "add": "Add me",
+        "busy": "Booked {{from}}–{{to}}",
+        "fromTime": "from {{time}}",
+        "untilTime": "until {{time}}",
+        "watch": "Tell me when someone plans to come",
+        "unwatch": "Stop telling me",
+        "watchOn": "You'll hear when someone plans to be in {{room}}",
+        "watchOff": "No more notices for this room",
+        "saved": "Saved",
+        "removed": "Removed",
+        "remove": "Remove",
+        "save": "Save",
+        "time": "Time",
+        "timeHint": "Optional: from, until, or both.",
+        "timeFrom": "From",
+        "timeTo": "Until",
+        "comment": "Comment",
+        "commentExample": "e.g. working on the boat, need a hand",
+        "keyHolder": "I bring the key",
+        "keyHolderHint": "Others then know the room will be open.",
+        "reminderNote": "The evening before you get a reminder with who else comes (in the app, and by mail or Discord as you set it under Account › Notifications).",
+        "week": "Week",
+        "month": "Month",
+        "count_one": "{{count}}",
+        "count_other": "{{count}}"
       }
     }
   },
@@ -160,6 +201,7 @@
       "desc": "Räume und Geräte im Kalender.",
       "tabs": {
         "calendar": "Kalender",
+        "onsite": "Vor Ort",
         "mine": "Meine Buchungen",
         "requests": "Anfragen",
         "resources": "Ressourcen"
@@ -284,6 +326,46 @@
         "maxHours": "höchstens {{n}} h",
         "ahead": "bis {{n}} Tage im Voraus",
         "calendar": "Kalender öffnen"
+      },
+      "onsite": {
+        "noRooms": "Noch keine Räume",
+        "noRoomsHint": "Räume, die unter Ressourcen erfasst sind, erscheinen hier.",
+        "intro": "Trag ein, an welchen Tagen du in einem Raum bist, damit andere am selben Tag kommen können. Es wird nichts reserviert: alle dürfen kommen.",
+        "status": {
+          "going": "Komme",
+          "maybe": "Vielleicht",
+          "here": "Bin da"
+        },
+        "key": "Bringt den Schlüssel",
+        "noKey": "Noch kein Schlüssel",
+        "me": "Ich",
+        "meToo": "Ich auch",
+        "imHere": "Bin da",
+        "add": "Mich eintragen",
+        "busy": "Belegt {{from}}–{{to}}",
+        "fromTime": "ab {{time}}",
+        "untilTime": "bis {{time}}",
+        "watch": "Melden, wenn jemand kommen will",
+        "unwatch": "Nicht mehr melden",
+        "watchOn": "Du hörst, wenn jemand in {{room}} kommen will",
+        "watchOff": "Keine Meldungen mehr für diesen Raum",
+        "saved": "Gespeichert",
+        "removed": "Entfernt",
+        "remove": "Entfernen",
+        "save": "Speichern",
+        "time": "Zeit",
+        "timeHint": "Freiwillig: ab, bis oder beides.",
+        "timeFrom": "Ab",
+        "timeTo": "Bis",
+        "comment": "Kommentar",
+        "commentExample": "z. B. arbeite am Boot, Hilfe willkommen",
+        "keyHolder": "Ich bringe den Schlüssel",
+        "keyHolderHint": "So wissen andere, dass der Raum offen ist.",
+        "reminderNote": "Am Vorabend bekommst du eine Erinnerung mit allen, die auch kommen (in der App, und per Mail oder Discord, wie unter Konto › Benachrichtigungen eingestellt).",
+        "week": "Woche",
+        "month": "Monat",
+        "count_one": "{{count}}",
+        "count_other": "{{count}}"
       }
     }
   }
