@@ -39,7 +39,7 @@ export function BookingScreen() {
       <PageHead title={t('booking.title')} desc={t('booking.desc')} />
       <Tabs tabs={tabs} activeTab={active} onTabChange={(id) => navigate(id === 'calendar' ? '/app/booking' : `/app/booking/${id}`)} />
       {active === 'calendar' && <CalendarTab options={options.data} />}
-      {active === 'onsite' && <OnsiteTab />}
+      {active === 'onsite' && <OnsiteTab canManage={!!can?.resources} />}
       {active === 'mine' && <MineTab options={options.data} />}
       {active === 'requests' && <RequestsTab options={options.data} />}
       {active === 'resources' && <ResourcesTab options={options.data} />}

@@ -57,6 +57,8 @@ class BookingResource(db.Model):
     max_hours: Mapped[int | None] = mapped_column(Integer)
     advance_days: Mapped[int | None] = mapped_column(Integer)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Vor Ort: the secret in the room's QR code; scanning it checks in.
+    onsite_token: Mapped[str | None] = mapped_column(String(43))
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False

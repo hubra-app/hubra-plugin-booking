@@ -141,6 +141,22 @@ export const deleteOnsite = (id: number) => apiFetch<void>(`${BASE}/onsite/${id}
 export const watchOnsite = (resourceId: number, watching: boolean) =>
   apiFetch<{ resourceId: number; watching: boolean }>(`${BASE}/onsite/watch`, json('PUT', { resourceId, watching }))
 
+export interface OnsiteQr {
+  resourceId: number
+  name: string
+  url: string
+  svg: string
+}
+export const getOnsiteQr = (resourceId: number) => apiFetch<OnsiteQr>(`${BASE}/onsite/qr/${resourceId}`)
+export const renewOnsiteQr = (resourceId: number) => apiFetch<OnsiteQr>(`${BASE}/onsite/qr/${resourceId}/renew`, json('POST', {}))
+export interface CheckinResult {
+  room: { id: number; name: string; location: string | null }
+  entry: OnsiteEntry
+  already: boolean
+  others: OnsiteEntry[]
+}
+export const checkIn = (token: string) => apiFetch<CheckinResult>(`${BASE}/onsite/checkin`, json('POST', { token }))
+
 export function errorText(err: unknown) {
   return err instanceof Error ? err.message : String(err)
 }

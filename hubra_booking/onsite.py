@@ -12,6 +12,12 @@ PUT    /onsite               {resourceId, day, status: going|maybe|here,
 DELETE /onsite/<id>          own entry; booking.bookings.update: anyone's
 PUT    /onsite/watch         {resourceId, watching}: hear when someone plans
                              to be in that room
+POST   /onsite/checkin       {token}: the room's QR code was scanned: the
+                             caller is there today ("Bin da")
+GET    /onsite/qr/<id>       booking.resources.update: the room's QR code
+                             ({url, svg}), made on first use
+POST   /onsite/qr/<id>/renew booking.resources.update: a new code; printed
+                             old ones stop working
 
 The jobs (``tasks.onsite_hourly``): the evening before, everyone who said
 Komme or Vielleicht gets a reminder (bell, Discord DM, mail) with who else
@@ -22,6 +28,7 @@ than the club keeps them (at least a year) are deleted.
 
 from __future__ import annotations
 
+import secrets
 from datetime import date, datetime, time, timedelta, timezone
 
 from flask import jsonify, request
@@ -36,6 +43,7 @@ from hubra.core.permissions import require_member
 from .body import Invalid, _body, _can, _date, _int, _names, _text
 from .models import Booking, BookingResource, OnsiteDay, OnsiteEntry, OnsiteWatch
 
+RESOURCES = "booking.resources.update"
 STATUSES = ("going", "maybe", "here")
 REMINDED = ("going", "maybe")
 # How far ahead a member can plan, and the longest range one request reads.
@@ -269,6 +277,110 @@ def register(bp) -> None:
         )
 
 
+def _qr(room: BookingResource) -> dict:
+    import io
+
+    import qrcode
+    import qrcode.image.svg
+
+    from hubra.core.services.email import club_app_url
+
+    if not room.onsite_token:
+        room.onsite_token = secrets.token_urlsafe(24)
+        db.session.commit()
+    path = f"/app/booking/checkin/{room.onsite_token}"
+    url = club_app_url(path) or path
+    image = qrcode.make(
+        url, image_factory=qrcode.image.svg.SvgPathImage, box_size=10, border=2
+    )
+    buf = io.BytesIO()
+    image.save(buf)
+    return {
+        "resourceId": room.id,
+        "name": room.name,
+        "url": url,
+        "svg": buf.getvalue().decode(),
+    }
+
+
+def register_checkin(bp) -> None:
+    @bp.post("/onsite/checkin")
+    @require_member
+    def onsite_checkin():
+        member = get_current_member()
+        token = _text(_body(), "token", 64, required=True)
+        room = db.session.scalar(
+            select(BookingResource)
+            .where(BookingResource.onsite_token == token)
+            .where(BookingResource.kind == "room")
+            .where(BookingResource.active.is_(True))
+        )
+        if room is None:
+            return api_error("NOT_FOUND", "This QR code is no longer valid", 404)
+        today = _local_now().date()
+        entry = db.session.scalar(
+            select(OnsiteEntry)
+            .where(OnsiteEntry.resource_id == room.id)
+            .where(OnsiteEntry.member_id == member.id)
+            .where(OnsiteEntry.day == today)
+        )
+        created = entry is None
+        if created:
+            entry = OnsiteEntry(
+                resource_id=room.id,
+                member_id=member.id,
+                day=today,
+                status="here",
+                key_holder=False,
+            )
+            db.session.add(entry)
+        was_here = not created and entry.status == "here"
+        entry.status = "here"
+        db.session.flush()
+        if created:
+            tell_watchers(entry, member)
+        db.session.commit()
+        others = list(
+            db.session.scalars(
+                select(OnsiteEntry)
+                .where(OnsiteEntry.resource_id == room.id)
+                .where(OnsiteEntry.day == today)
+                .where(OnsiteEntry.member_id != member.id)
+                .order_by(OnsiteEntry.starts, OnsiteEntry.id)
+            )
+        )
+        names = _names([e.member_id for e in others] + [member.id])
+        return jsonify(
+            {
+                "room": {"id": room.id, "name": room.name, "location": room.location},
+                "entry": _entry(entry, names, member.id),
+                "already": was_here,
+                "others": [_entry(e, names, member.id) for e in others],
+            }
+        )
+
+    @bp.get("/onsite/qr/<int:resource_id>")
+    @require_member
+    def onsite_qr(resource_id: int):
+        if not _can(get_current_member(), RESOURCES):
+            return api_error("FORBIDDEN", "only for those who manage resources", 403)
+        rooms = _rooms([resource_id])
+        if not rooms:
+            return api_error("NOT_FOUND", "not found", 404)
+        return jsonify(_qr(rooms[0]))
+
+    @bp.post("/onsite/qr/<int:resource_id>/renew")
+    @require_member
+    def onsite_qr_renew(resource_id: int):
+        if not _can(get_current_member(), RESOURCES):
+            return api_error("FORBIDDEN", "only for those who manage resources", 403)
+        rooms = _rooms([resource_id])
+        if not rooms:
+            return api_error("NOT_FOUND", "not found", 404)
+        rooms[0].onsite_token = None
+        return jsonify(_qr(rooms[0]))
+
+
 # ── Texts ────────────────────────────────────────────────────────────────────
 
 
@@ -318,11 +430,19 @@ def tell_watchers(entry: OnsiteEntry, member) -> int:
         if de:
             verb = "kommt vielleicht" if entry.status == "maybe" else "kommt"
             title = f"Vor Ort: {room.name}"
-            msg = f"{member.name} {verb} am {when}."
+            msg = (
+                f"{member.name} ist jetzt da."
+                if entry.status == "here"
+                else f"{member.name} {verb} am {when}."
+            )
         else:
             verb = "might come" if entry.status == "maybe" else "is coming"
             title = f"Onsite: {room.name}"
-            msg = f"{member.name} {verb} on {when}."
+            msg = (
+                f"{member.name} is there now."
+                if entry.status == "here"
+                else f"{member.name} {verb} on {when}."
+            )
         notify_member(w.id, "info", title, msg, link=f"{LINK}?day={entry.day}")
     return len(watchers)
 

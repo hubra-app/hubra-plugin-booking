@@ -180,7 +180,33 @@
         "week": "Week",
         "month": "Month",
         "count_one": "{{count}}",
-        "count_other": "{{count}}"
+        "count_other": "{{count}}",
+        "qr": "QR code for check-in",
+        "qrTitle": "Check-in QR code: {{room}}",
+        "qrHint": "Print it and hang it at the door. Members who scan it are checked in for today (I'm here).",
+        "qrPoster": "Scan to check in: you're here today",
+        "qrPrint": "Print",
+        "qrRenew": "New code",
+        "qrRenewed": "New code made; printed old codes no longer work",
+        "close": "Close"
+      },
+      "widget": {
+        "today": "Onsite today",
+        "todayHint": "Who is in which room today",
+        "mine": "My onsite days",
+        "mineHint": "Your next days in a room, with who else comes",
+        "count": "How many",
+        "countToday": "Onsite today (count)",
+        "countHint": "How many said they'll be in a room today, and tomorrow"
+      },
+      "checkin": {
+        "done": "You're checked in: {{room}}",
+        "already": "Already checked in: {{room}}",
+        "hint": "For today. Others see that you're here.",
+        "keyHint": "Others then know the room is open.",
+        "others": "Also here or coming today",
+        "alone": "Nobody else yet.",
+        "toCalendar": "Open Vor Ort"
       }
     }
   },
@@ -365,7 +391,33 @@
         "week": "Woche",
         "month": "Monat",
         "count_one": "{{count}}",
-        "count_other": "{{count}}"
+        "count_other": "{{count}}",
+        "qr": "QR-Code zum Einchecken",
+        "qrTitle": "QR-Code zum Einchecken: {{room}}",
+        "qrHint": "Ausdrucken und an die Tür hängen. Wer ihn scannt, ist für heute eingecheckt (Bin da).",
+        "qrPoster": "Scannen zum Einchecken: Ich bin heute da",
+        "qrPrint": "Drucken",
+        "qrRenew": "Neuer Code",
+        "qrRenewed": "Neuer Code erstellt; alte Ausdrucke gelten nicht mehr",
+        "close": "Schliessen"
+      },
+      "widget": {
+        "today": "Heute vor Ort",
+        "todayHint": "Wer heute in welchem Raum ist",
+        "mine": "Meine Vor-Ort-Tage",
+        "mineHint": "Deine nächsten Tage in einem Raum, mit allen, die auch kommen",
+        "count": "Anzahl",
+        "countToday": "Heute vor Ort (Anzahl)",
+        "countHint": "Wie viele heute in einem Raum sind, und morgen"
+      },
+      "checkin": {
+        "done": "Du bist eingecheckt: {{room}}",
+        "already": "Schon eingecheckt: {{room}}",
+        "hint": "Für heute. Andere sehen, dass du da bist.",
+        "keyHint": "So wissen andere, dass der Raum offen ist.",
+        "others": "Heute auch da oder unterwegs",
+        "alone": "Noch niemand sonst.",
+        "toCalendar": "Vor Ort öffnen"
       }
     }
   }
