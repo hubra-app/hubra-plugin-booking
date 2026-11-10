@@ -776,3 +776,4 @@ def cancel(booking_id: int):
 from . import onsite as _onsite
 
 _onsite.register(booking_bp)
+_onsite.register_checkin(booking_bp)

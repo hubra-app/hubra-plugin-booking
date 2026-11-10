@@ -1,6 +1,7 @@
 import { registerPlugin } from '@hubra/plugin-sdk'
 import { IconCalendarTime } from '@tabler/icons-react'
 import { BookingScreen } from './BookingScreen'
+import { CheckinScreen } from './CheckinScreen'
 import { ItemBookingPanel } from './ItemBookingPanel'
 import translations from './translations.json'
 
@@ -9,6 +10,8 @@ registerPlugin({
   routes: [
     { path: 'booking', module: 'booking', component: BookingScreen },
     { path: 'booking/onsite', module: 'booking', component: BookingScreen },
+    // A room's QR code: scanning it checks the member in (Vor Ort, Bin da).
+    { path: 'booking/checkin/:token', module: 'booking', component: CheckinScreen },
     { path: 'booking/mine', module: 'booking', component: BookingScreen },
     { path: 'booking/requests', module: 'booking', perm: 'booking.bookings.update', component: BookingScreen },
     { path: 'booking/resources', module: 'booking', perm: 'booking.resources.update', component: BookingScreen },

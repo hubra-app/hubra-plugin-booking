@@ -25,12 +25,17 @@ import {
   IconDoorOff,
   IconKey,
   IconPlus,
+  IconPrinter,
+  IconQrcode,
+  IconRefresh,
 } from '@tabler/icons-react'
 import { EmptyState, ErrorBanner, Field, LoadingSpinner, Modal, useT } from '@hubra/plugin-sdk'
 import {
   QK,
   addDays,
   deleteOnsite,
+  getOnsiteQr,
+  renewOnsiteQr,
   errorText,
   hhmm,
   isoDay,
@@ -62,7 +67,7 @@ function timeText(e: OnsiteEntry, t: (k: string, o?: Record<string, unknown>) =>
 /** Vor Ort: who plans to be in which room on which day. A week of days by
  * rooms (a day on the phone); a cell shows the people, the key, and when the
  * room is booked. */
-export function OnsiteTab() {
+export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
   const { t, i18n } = useT()
   const qc = useQueryClient()
   const phone = useMediaQuery('(max-width: 48em)')
@@ -74,6 +79,7 @@ export function OnsiteTab() {
   const [editing, setEditing] = useState<{ room: Room; day: string; entry?: OnsiteEntry } | null>(
     null,
   )
+  const [qrFor, setQrFor] = useState<Room | null>(null)
   const [view, setView] = useState<'week' | 'month'>(() => {
     try {
       return localStorage.getItem('booking.onsiteView') === 'month' ? 'month' : 'week'
@@ -260,6 +266,7 @@ export function OnsiteTab() {
                 room={room}
                 watching={watching.includes(room.id)}
                 onWatch={() => toggleWatch(room)}
+                onQr={canManage ? () => setQrFor(room) : undefined}
               />
               <Box mt="xs">{cell(room, days[0])}</Box>
             </Paper>
@@ -309,6 +316,7 @@ export function OnsiteTab() {
                       room={room}
                       watching={watching.includes(room.id)}
                       onWatch={() => toggleWatch(room)}
+                      onQr={canManage ? () => setQrFor(room) : undefined}
                     />
                   </Box>
                   {days.map((d) => (
@@ -331,6 +339,7 @@ export function OnsiteTab() {
           </ScrollArea>
         </Paper>
       )}
+      {qrFor && <QrModal room={qrFor} onClose={() => setQrFor(null)} />}
       {editing && (
         <OnsiteModal
           room={editing.room}
@@ -451,10 +460,12 @@ function RoomHead({
   room,
   watching,
   onWatch,
+  onQr,
 }: {
   room: Room
   watching: boolean
   onWatch: () => void
+  onQr?: () => void
 }) {
   const { t } = useT()
   return (
@@ -469,17 +480,31 @@ function RoomHead({
           </Text>
         )}
       </Box>
-      <Tooltip label={watching ? t('booking.onsite.unwatch') : t('booking.onsite.watch')}>
-        <ActionIcon
-          variant={watching ? 'light' : 'subtle'}
-          color={watching ? 'violet' : 'gray'}
-          aria-label={watching ? t('booking.onsite.unwatch') : t('booking.onsite.watch')}
-          aria-pressed={watching}
-          onClick={onWatch}
-        >
-          {watching ? <IconBell size={16} /> : <IconBellOff size={16} />}
-        </ActionIcon>
-      </Tooltip>
+      <Group gap={2} wrap="nowrap">
+        {onQr && (
+          <Tooltip label={t('booking.onsite.qr')}>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              aria-label={t('booking.onsite.qr')}
+              onClick={onQr}
+            >
+              <IconQrcode size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+        <Tooltip label={watching ? t('booking.onsite.unwatch') : t('booking.onsite.watch')}>
+          <ActionIcon
+            variant={watching ? 'light' : 'subtle'}
+            color={watching ? 'violet' : 'gray'}
+            aria-label={watching ? t('booking.onsite.unwatch') : t('booking.onsite.watch')}
+            aria-pressed={watching}
+            onClick={onWatch}
+          >
+            {watching ? <IconBell size={16} /> : <IconBellOff size={16} />}
+          </ActionIcon>
+        </Tooltip>
+      </Group>
     </Group>
   )
 }
@@ -703,6 +728,94 @@ function OnsiteModal({
       <Text size="xs" c="dimmed">
         {t('booking.onsite.reminderNote')}
       </Text>
+    </Modal>
+  )
+}
+
+/** The QR code fills its box (qrcode's SVG has a fixed size in mm). */
+const fitSvg = (svg: string) =>
+  svg.replace(/<svg([^>]*?)\swidth="[^"]*"\s+height="[^"]*"/, '<svg$1 width="100%" height="100%"')
+
+/** A room's QR code to print and hang at the door: scanning it checks the
+ * member in for today. */
+function QrModal({ room, onClose }: { room: Room; onClose: () => void }) {
+  const { t } = useT()
+  const qc = useQueryClient()
+  const { busy, run } = useAction()
+  const qr = useQuery({
+    queryKey: ['booking', 'onsite-qr', room.id],
+    queryFn: () => getOnsiteQr(room.id),
+  })
+  const renew = () =>
+    run(() => renewOnsiteQr(room.id), t('booking.onsite.qrRenewed')).then((ok) => {
+      if (ok) qc.invalidateQueries({ queryKey: ['booking', 'onsite-qr', room.id] })
+    })
+  const print = () => {
+    if (!qr.data) return
+    const w = window.open('', '_blank', 'width=700,height=900')
+    if (!w) return
+    const esc = (s: string) =>
+      s.replace(
+        /[&<>"]/g,
+        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string,
+      )
+    w.document.write(
+      `<!doctype html><html><head><meta charset="utf-8"><title>${esc(room.name)}</title>` +
+        `<style>body{font-family:system-ui,sans-serif;text-align:center;padding:40px}h1{font-size:40px;margin:0 0 8px}` +
+        `p{font-size:20px;color:#444}svg{width:420px;height:420px}</style></head><body>` +
+        `<h1>${esc(room.name)}</h1><p>${esc(t('booking.onsite.qrPoster'))}</p>${fitSvg(qr.data.svg)}` +
+        `<p style="font-size:12px;color:#888">${esc(qr.data.url)}</p></body></html>`,
+    )
+    w.document.close()
+    w.focus()
+    w.print()
+  }
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={t('booking.onsite.qrTitle', { room: room.name })}
+      footer={
+        <>
+          <Button
+            variant="subtle"
+            color="red"
+            mr="auto"
+            leftSection={<IconRefresh size={16} />}
+            loading={busy}
+            onClick={renew}
+          >
+            {t('booking.onsite.qrRenew')}
+          </Button>
+          <Button variant="default" onClick={onClose}>
+            {t('booking.onsite.close')}
+          </Button>
+          <Button leftSection={<IconPrinter size={16} />} disabled={!qr.data} onClick={print}>
+            {t('booking.onsite.qrPrint')}
+          </Button>
+        </>
+      }
+    >
+      {qr.error ? (
+        <ErrorBanner message={errorText(qr.error)} onRetry={() => qr.refetch()} />
+      ) : !qr.data ? (
+        <LoadingSpinner />
+      ) : (
+        <Stack align="center" gap="xs">
+          <Box
+            w={240}
+            h={240}
+            style={{ background: '#fff', borderRadius: 8 }}
+            dangerouslySetInnerHTML={{ __html: fitSvg(qr.data.svg) }}
+          />
+          <Text size="sm" ta="center">
+            {t('booking.onsite.qrHint')}
+          </Text>
+          <Text size="xs" c="dimmed" ta="center" style={{ wordBreak: 'break-all' }}>
+            {qr.data.url}
+          </Text>
+        </Stack>
+      )}
     </Modal>
   )
 }

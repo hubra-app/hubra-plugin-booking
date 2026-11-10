@@ -21,7 +21,7 @@ Permissions:
                                book for others and repeat weekly
 """
 
-from hubra.core.contracts import event_contract
+from hubra.core.contracts import WidgetField, event_contract, widget_contract
 from hubra.core.modules import Blueprint, Module, NavItem, Schedule, SettingField
 
 module = Module(
@@ -84,6 +84,32 @@ module = Module(
             "booking.onsite.today",
             "hubra_booking.contracts:OnsiteToday",
             description="Who said they'll be in which room today (Vor Ort), once each morning.",
+        ),
+        # Dashboard widgets (widgets.py); every member may add them.
+        widget_contract(
+            "booking.onsite_today",
+            "hubra_booking.widgets:today",
+            label="booking.widget.today",
+            description="booking.widget.todayHint",
+            size="m",
+            view="list",
+        ),
+        widget_contract(
+            "booking.onsite_mine",
+            "hubra_booking.widgets:mine",
+            label="booking.widget.mine",
+            description="booking.widget.mineHint",
+            size="m",
+            view="list",
+            fields=(WidgetField("count", "booking.widget.count", "number", 5),),
+        ),
+        widget_contract(
+            "booking.onsite_count",
+            "hubra_booking.widgets:count",
+            label="booking.widget.countToday",
+            description="booking.widget.countHint",
+            size="s",
+            view="stat",
         ),
     ),
     # Equipment is an Inventory item, read through Inventory's contracts.
