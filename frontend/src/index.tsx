@@ -1,5 +1,5 @@
 import { registerPlugin } from '@hubra/plugin-sdk'
-import { IconCalendarTime } from '@tabler/icons-react'
+import { IconCalendarTime, IconMapPin } from '@tabler/icons-react'
 import { BookingScreen } from './BookingScreen'
 import { CheckinScreen } from './CheckinScreen'
 import { ItemBookingPanel } from './ItemBookingPanel'
@@ -19,7 +19,7 @@ registerPlugin({
   // On an inventory item's page: make it bookable, its fees and approval,
   // and a link to its calendar.
   slots: [{ slot: 'inventory.item', module: 'booking', component: ItemBookingPanel }],
-  // The nav entry in hubra_booking/__init__.py names this icon.
-  icons: { 'calendar-time': IconCalendarTime },
+  // The nav entries in hubra_booking/__init__.py name these icons.
+  icons: { 'calendar-time': IconCalendarTime, 'map-pin': IconMapPin },
   translations,
 })

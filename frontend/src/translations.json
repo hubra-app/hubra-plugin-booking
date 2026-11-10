@@ -2,7 +2,8 @@
   "en-GB": {
     "shell": {
       "nav": {
-        "booking": "Bookings"
+        "booking": "Bookings",
+        "onsite": "On site"
       }
     },
     "roles": {
@@ -213,7 +214,8 @@
   "de-CH": {
     "shell": {
       "nav": {
-        "booking": "Reservationen"
+        "booking": "Reservationen",
+        "onsite": "Vor Ort"
       }
     },
     "roles": {
