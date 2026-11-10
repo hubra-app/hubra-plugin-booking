@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Vor Ort** has its own sidebar entry (Erweiterungen › Vor Ort), so members
+  find it without opening Reservationen first. Hubra puts "Heute vor Ort" on
+  the built-in Dashboard › Persönlich while Booking is on.
 - German: "z. B." with a space; the reminder hint points at Konto › Mitgliedschaft › Benachrichtigungen, where that setting is.
 
 ## 1.1.0

@@ -44,6 +44,15 @@ module = Module(
             section="more",
             order=27,
         ),
+        # Vor Ort gets its own row so members find it without opening
+        # Reservationen first; the page is the Vor Ort tab.
+        NavItem(
+            "/app/booking/onsite",
+            "shell.nav.onsite",
+            "map-pin",
+            section="more",
+            order=28,
+        ),
     ),
     tables=(
         "booking_resources",
