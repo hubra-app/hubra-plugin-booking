@@ -1,11 +1,12 @@
 # Booking
 
+## Unreleased
+
+- German: "z. B." with a space; the reminder hint points at Konto › Mitgliedschaft › Benachrichtigungen, where that setting is.
+
 ## 1.1.0
 
 - Gives the standard roles access when a club first switches it on (`role_defaults`, docs/roles.md in hubra-app/hubra): Mitglied Ansehen, Vorstand Bearbeiten. Roles without access don't see it; their own data from it stays on their profile. Needs Hubra 0.2.5 or later.
-
-## Unreleased
-
 - **Vor Ort** (new tab): members say on which days they'll be in a room
   (Komme, Vielleicht, Bin da for today), with an optional time and comment
   and "Ich bringe den Schlüssel", so others can come on the same days.
