@@ -152,9 +152,9 @@
           "here": "I'm here"
         },
         "key": "Brings the key",
-        "noKey": "Nobody has said they bring the key yet",
+        "noKey": "No key yet",
         "me": "Me",
-        "meToo": "I'm coming too",
+        "meToo": "Me too",
         "imHere": "I'm here",
         "add": "Add me",
         "busy": "Booked {{from}}–{{to}}",
@@ -337,9 +337,9 @@
           "here": "Bin da"
         },
         "key": "Bringt den Schlüssel",
-        "noKey": "Noch niemand bringt den Schlüssel",
+        "noKey": "Noch kein Schlüssel",
         "me": "Ich",
-        "meToo": "Ich komme auch",
+        "meToo": "Ich auch",
         "imHere": "Bin da",
         "add": "Mich eintragen",
         "busy": "Belegt {{from}}–{{to}}",
