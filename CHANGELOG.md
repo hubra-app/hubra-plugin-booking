@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Vor Ort** (new tab): members say on which days they'll be in a room
+  (Komme, Vielleicht, Bin da for today), with an optional time and comment
+  and "Ich bringe den Schlüssel", so others can come on the same days.
+  Nothing is reserved and there is no cap. Week grid (rooms by days, a day on
+  the phone) and a month view with counts per room; "Ich komme auch" in one
+  tap; exclusive bookings of the room show as "Belegt". Members can watch a
+  room (bell when someone plans to come). The evening before (18:00), everyone
+  who said Komme or Vielleicht gets a reminder with who else comes and who
+  brings the key: bell and Discord DM by the member's "Erinnerung vor
+  Anlässen" choices, mail by their reminder mail switch. In the morning
+  (07:00) the day's list goes out as the new event `booking.onsite.today`
+  (the Discord plugin posts it). Entries are kept at least 365 days
+  (settings `onsite_keep_days`, `onsite_reminder_hour`, `onsite_today_hour`).
+  New tables `booking_onsite`, `booking_onsite_watches`,
+  `booking_onsite_days` (migration 8e3b6d1a4f27); hourly job
+  `booking-onsite-hourly`; `uses` adds `jobs` and `settings`.
 - **Booking now needs Inventory** (2.1 or newer) and is shown as its add-on:
   `requires: [inventory, …]`, `depends: inventory`. New equipment is made
   bookable on the item's page; Booking's own form adds rooms.

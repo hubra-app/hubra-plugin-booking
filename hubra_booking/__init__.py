@@ -9,6 +9,11 @@
   ``booking.bookings.update`` approves it.
 - A resource can cost a fee (flat and/or per hour). It goes on the member's
   invoice once the booking is confirmed.
+- Vor Ort: members say on which days they'll be in a room (Komme,
+  Vielleicht, Bin da, with an optional time, a comment and "I bring the
+  key"), so others can go on the same days. The evening before they get a
+  reminder; in the morning the day's list goes out as
+  ``booking.onsite.today`` (onsite.py).
 
 Permissions:
     booking.resources.update   add and change resources
@@ -16,7 +21,8 @@ Permissions:
                                book for others and repeat weekly
 """
 
-from hubra.core.modules import Blueprint, Module, NavItem
+from hubra.core.contracts import event_contract
+from hubra.core.modules import Blueprint, Module, NavItem, Schedule, SettingField
 
 module = Module(
     code="booking",
@@ -36,7 +42,47 @@ module = Module(
             order=27,
         ),
     ),
-    tables=("booking_resources", "booking_bookings"),
+    tables=(
+        "booking_resources",
+        "booking_bookings",
+        "booking_onsite",
+        "booking_onsite_watches",
+        "booking_onsite_days",
+    ),
+    settings=(
+        SettingField(
+            "onsite_keep_days",
+            "int",
+            365,
+            label="Vor Ort: Einträge aufbewahren (Tage)",
+            description="Wie lange vergangene Vor-Ort-Einträge bleiben, mindestens 365 Tage.",
+        ),
+        SettingField(
+            "onsite_reminder_hour",
+            "int",
+            18,
+            label="Vor Ort: Erinnerung am Vorabend um (Uhr)",
+            description="Wer für morgen «Komme» oder «Vielleicht» sagt, wird zu dieser Stunde erinnert.",
+        ),
+        SettingField(
+            "onsite_today_hour",
+            "int",
+            7,
+            label="Vor Ort: Tagesliste um (Uhr)",
+            description="Ab dieser Stunde geht die Liste «heute vor Ort» an Discord.",
+        ),
+    ),
+    tasks=("hubra_booking.tasks",),
+    schedule=(
+        Schedule("booking-onsite-hourly", "hubra_booking.tasks.onsite_hourly", 3600.0),
+    ),
+    provides=(
+        event_contract(
+            "booking.onsite.today",
+            "hubra_booking.contracts:OnsiteToday",
+            description="Who said they'll be in which room today (Vor Ort), once each morning.",
+        ),
+    ),
     # Equipment is an Inventory item, read through Inventory's contracts.
     # Fees go on invoices through Finance's contracts, not its services.
     consumes={

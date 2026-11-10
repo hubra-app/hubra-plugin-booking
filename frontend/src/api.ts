@@ -65,6 +65,7 @@ export const QK = {
   calendar: (from: string, to: string) => ['booking', 'calendar', from, to] as const,
   mine: ['booking', 'mine'] as const,
   pending: ['booking', 'pending'] as const,
+  onsite: (from: string, to: string) => ['booking', 'onsite', from, to] as const,
 }
 
 export const getOptions = () => apiFetch<Options>(`${BASE}/options`)
@@ -99,6 +100,46 @@ export const decideBooking = (id: number, approve: boolean, note?: string) =>
   apiFetch<Booking>(`${BASE}/bookings/${id}/decide`, json('POST', { approve, note }))
 export const cancelBooking = (id: number, series = false) =>
   apiFetch<{ cancelled: number[] }>(`${BASE}/bookings/${id}/cancel`, json('POST', { series }))
+
+// ── Vor Ort ─────────────────────────────────────────────────────────────────
+
+export type OnsiteStatus = 'going' | 'maybe' | 'here'
+
+export interface OnsiteEntry {
+  id: number
+  resourceId: number
+  day: string
+  from: string | null
+  to: string | null
+  status: OnsiteStatus
+  keyHolder: boolean
+  comment: string | null
+  memberId: number
+  memberName: string | null
+  mine: boolean
+}
+
+export interface OnsiteData {
+  today: string
+  rooms: { id: number; name: string; location: string | null; color: string | null }[]
+  entries: OnsiteEntry[]
+  busy: { resourceId: number; startsAt: string; endsAt: string; title: string | null; pending: boolean }[]
+  watching: number[]
+}
+
+export const listOnsite = (from: string, to: string) => apiFetch<OnsiteData>(`${BASE}/onsite?from=${from}&to=${to}`)
+export const setOnsite = (body: {
+  resourceId: number
+  day: string
+  status: OnsiteStatus
+  from?: string | null
+  to?: string | null
+  keyHolder?: boolean
+  comment?: string | null
+}) => apiFetch<OnsiteEntry>(`${BASE}/onsite`, json('PUT', body))
+export const deleteOnsite = (id: number) => apiFetch<void>(`${BASE}/onsite/${id}`, { method: 'DELETE' })
+export const watchOnsite = (resourceId: number, watching: boolean) =>
+  apiFetch<{ resourceId: number; watching: boolean }>(`${BASE}/onsite/watch`, json('PUT', { resourceId, watching }))
 
 export function errorText(err: unknown) {
   return err instanceof Error ? err.message : String(err)
