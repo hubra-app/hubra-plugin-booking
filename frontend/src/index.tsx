@@ -1,6 +1,6 @@
 import { registerPlugin } from '@hubra/plugin-sdk'
 import { IconCalendarTime, IconMapPin } from '@tabler/icons-react'
-import { BookingScreen, OnsiteEventsTab, OnsiteRedirect } from './BookingScreen'
+import { BookingScreen, CalendarBookingsTab, CalendarOnsiteTab, OnsiteRedirect } from './BookingScreen'
 import { CheckinScreen } from './CheckinScreen'
 import { ItemBookingPanel } from './ItemBookingPanel'
 import translations from './translations.json'
@@ -17,9 +17,13 @@ registerPlugin({
     { path: 'booking/requests', module: 'booking', perm: 'booking.bookings.update', component: BookingScreen },
     { path: 'booking/resources', module: 'booking', perm: 'booking.resources.update', component: BookingScreen },
   ],
-  // Vor Ort (who is in which room on which day) as a tab of Anlässe, next to
-  // the club's events (/app/operations/events/onsite).
-  tabs: [{ screen: 'events', id: 'onsite', label: 'booking.tabs.onsite', module: 'booking', component: OnsiteEventsTab }],
+  // Both calendars live under Kalender, next to the club's other dates:
+  // Vor Ort (who is in which room on which day, /app/calendar/onsite) and the
+  // booking calendar (/app/calendar/bookings).
+  tabs: [
+    { screen: 'calendar', id: 'onsite', label: 'booking.tabs.onsite', module: 'booking', component: CalendarOnsiteTab },
+    { screen: 'calendar', id: 'bookings', label: 'booking.tabs.bookings', module: 'booking', component: CalendarBookingsTab },
+  ],
   // On an inventory item's page: make it bookable, its fees and approval,
   // and a link to its calendar.
   slots: [{ slot: 'inventory.item', module: 'booking', component: ItemBookingPanel }],

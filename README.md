@@ -12,7 +12,7 @@ A plugin for [Hubra](https://hubra.club). Rooms and equipment on a calendar: mem
 
 | Tab | |
 | --- | --- |
-| Kalender | The week of one resource (a day on the phone). Click a free hour to book it. Bookings show the title or the member's name; requests still waiting for approval are dashed and already hold the slot. |
+| Kalender › Buchungen | The week of one resource (a day on the phone). Click a free hour to book it. Bookings show the title or the member's name; requests still waiting for approval are dashed and already hold the slot. |
 | Meine Buchungen | The member's upcoming bookings and the last 30 days. A member cancels their own booking until it starts; an unpaid fee invoice goes with it. |
 | Anfragen | Requests waiting for approval. Confirming one bills the fee; the member gets a bell notification either way. |
 | Ressourcen | Rooms and equipment with a colour, a place, a fee per booking and/or per hour (with a finance category), the longest booking, how far ahead members can book, an approval switch. Equipment is an Inventory item: it is made bookable on the item's page (Reservationen), and name and place follow the item; items out of use can't be booked. |
@@ -21,6 +21,12 @@ Approvers can book for another member and repeat a booking weekly (up to
 52 weeks); cancelling one booking of a series can cancel the rest too.
 Times are the club's wall-clock time (`MAIL_TIMEZONE`, Europe/Zurich by
 default).
+
+The booking calendar and Vor Ort (who is in which room on which day) are
+tabs of Hubra's club calendar, **Kalender › Buchungen** and **Kalender › Vor
+Ort**; Meine Buchungen, Anfragen and Ressourcen stay on the Booking page.
+Kalender › Alles shows the bookings and the Vor Ort days next to the club's
+events, through the `booking.calendar.items` contract.
 
 Permissions: `booking.resources.update`, `booking.bookings.update`. Every
 member can see the calendar and book.

@@ -22,6 +22,7 @@ Permissions:
 """
 
 from hubra.core.contracts import WidgetField, event_contract, widget_contract
+from hubra.core.contracts.calendar import calendar_contract
 from hubra.core.modules import Blueprint, Module, NavItem, Schedule, SettingField
 
 module = Module(
@@ -94,6 +95,8 @@ module = Module(
         Schedule("booking-onsite-hourly", "hubra_booking.tasks.onsite_hourly", 3600.0),
     ),
     provides=(
+        # The club calendar shows the bookings (calendar.py).
+        calendar_contract("booking", "hubra_booking.calendar:items"),
         event_contract(
             "booking.onsite.today",
             "hubra_booking.contracts:OnsiteToday",
