@@ -20,6 +20,9 @@ from hubra.core.modules import Blueprint, Module, NavItem
 
 module = Module(
     code="booking",
+    # Access the standard roles get when a club first switches it on
+    # (docs/roles.md in hubra-app/hubra).
+    role_defaults={"member": "view", "board": "edit"},
     name="Booking",
     description="Rooms and equipment on a calendar",
     default_enabled=False,
