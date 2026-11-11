@@ -44,6 +44,9 @@ module = Module(
             section="more",
             order=27,
         ),
+        # Vor Ort has no row of its own: it is a tab on Anlässe (the
+        # frontend's tab on screen "events"), or a Reservationen tab in a
+        # club without the events module.
     ),
     tables=(
         "booking_resources",
