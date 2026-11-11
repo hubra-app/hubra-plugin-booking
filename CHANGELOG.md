@@ -9,7 +9,10 @@
   those who may read the inventory; a resource colour is a palette name or
   a #hex code; the Vor Ort calendar feed drops control characters from
   names and comments and stops for members whose roles no longer include
-  Booking.
+  Booking. A deleted member leaves no Vor Ort days, watches or feed token
+  behind, and their name and note go from bookings (the hourly job; club
+  schemas made by cloning have no foreign keys that would cascade).
+  Deleting a resource deletes its Vor Ort rows too.
 - Booking dialog: Ablehnen or Buchung absagen as red text at the left, then Schliessen, then Bestätigen. Resource fees use the app's money field (CHF, 2 decimals, no arrows); "Zum Inventar" is a themed link.
 - **Vor Ort moved to Anlässe**: it is a tab of the Anlässe page now
   (/app/operations/events/onsite), next to the club's events, instead of its

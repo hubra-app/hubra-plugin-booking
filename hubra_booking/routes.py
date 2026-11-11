@@ -32,6 +32,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, current_app, jsonify, request
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 
 from hubra.core.auth.helpers import get_current_member
@@ -374,6 +375,11 @@ def delete_resource(resource_id: int):
             "RESOURCE_IN_USE", "it has bookings; switch it off instead", 409
         )
     log_audit(member.id, "booking.resource.delete", "BookingResource", r.id, r.name)
+    # Explicitly: a club schema may lack the foreign keys that cascade.
+    from .models import OnsiteEntry, OnsitePing, OnsiteWatch
+
+    for model in (OnsiteEntry, OnsiteWatch, OnsitePing):
+        db.session.execute(sa_delete(model).where(model.resource_id == r.id))
     db.session.delete(r)
     db.session.commit()
     return "", 204

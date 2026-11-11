@@ -225,19 +225,49 @@ def test_dashboard_widgets(client, db, club):
     today = date.today()
     db.session.add_all(
         [
-            OnsiteEntry(resource_id=club["room"], member_id=club["max"], day=today, status="here", key_holder=True),
-            OnsiteEntry(resource_id=club["room"], member_id=club["lea"], day=today, status="maybe"),
-            OnsiteEntry(resource_id=club["room"], member_id=club["lea"], day=today + timedelta(days=1), status="going"),
-            OnsiteEntry(resource_id=club["room"], member_id=club["kim"], day=today + timedelta(days=1), status="going"),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["max"],
+                day=today,
+                status="here",
+                key_holder=True,
+            ),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["lea"],
+                day=today,
+                status="maybe",
+            ),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["lea"],
+                day=today + timedelta(days=1),
+                status="going",
+            ),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["kim"],
+                day=today + timedelta(days=1),
+                status="going",
+            ),
         ]
     )
     db.session.commit()
     _login(client, "lea@test.ch")
-    names = {w["name"] for w in client.get("/api/v1/app/dashboards/widgets").get_json()["items"]}
-    assert {"booking.onsite_today", "booking.onsite_mine", "booking.onsite_count"} <= names
+    names = {
+        w["name"]
+        for w in client.get("/api/v1/app/dashboards/widgets").get_json()["items"]
+    }
+    assert {
+        "booking.onsite_today",
+        "booking.onsite_mine",
+        "booking.onsite_count",
+    } <= names
 
     def data(name, **config):
-        r = client.post(f"/api/v1/app/dashboards/widgets/{name}/data", json={"config": config})
+        r = client.post(
+            f"/api/v1/app/dashboards/widgets/{name}/data", json={"config": config}
+        )
         assert r.status_code == 200, r.get_json()
         return r.get_json()["data"]
 
@@ -245,7 +275,9 @@ def test_dashboard_widgets(client, db, club):
     assert rows[0]["label"] == "Werkstatt · 2" and "Test Max🔑 ✓" in rows[0]["sub"]
     mine = data("booking.onsite_mine", count=5)
     assert mine["total"] == 2
-    assert "Test Max" in mine["items"][0]["sub"] and "Test Kim" in mine["items"][1]["sub"]
+    assert (
+        "Test Max" in mine["items"][0]["sub"] and "Test Kim" in mine["items"][1]["sub"]
+    )
     stat = data("booking.onsite_count")
     assert stat["value"] == 2 and stat["sub"].endswith(": 2")
 
@@ -261,12 +293,29 @@ def test_check_in_by_room_qr_code(client, db, club):
     assert client.get(f"{BASE}/onsite/qr/{club['room']}").get_json()["url"] == qr["url"]
 
     _login(client, "lea@test.ch")
-    client.put(f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(0), "status": "going", "keyHolder": True})
+    client.put(
+        f"{BASE}/onsite",
+        json={
+            "resourceId": club["room"],
+            "day": _day(0),
+            "status": "going",
+            "keyHolder": True,
+        },
+    )
     _login(client, "max@test.ch")
     r = client.post(f"{BASE}/onsite/checkin", json={"token": token}).get_json()
-    assert r["room"]["name"] == "Werkstatt" and r["entry"]["status"] == "here" and r["already"] is False
+    assert (
+        r["room"]["name"] == "Werkstatt"
+        and r["entry"]["status"] == "here"
+        and r["already"] is False
+    )
     assert [o["memberName"] for o in r["others"]] == ["Test Lea"]
-    assert client.post(f"{BASE}/onsite/checkin", json={"token": token}).get_json()["already"] is True
+    assert (
+        client.post(f"{BASE}/onsite/checkin", json={"token": token}).get_json()[
+            "already"
+        ]
+        is True
+    )
     # Lea had said "Komme": scanning turns it into "Bin da", keeping the key.
     _login(client, "lea@test.ch")
     r = client.post(f"{BASE}/onsite/checkin", json={"token": token}).get_json()
@@ -275,7 +324,9 @@ def test_check_in_by_room_qr_code(client, db, club):
     _login(client, "kim@test.ch")
     new = client.post(f"{BASE}/onsite/qr/{club['room']}/renew").get_json()
     assert new["url"] != qr["url"]
-    assert client.post(f"{BASE}/onsite/checkin", json={"token": token}).status_code == 404
+    assert (
+        client.post(f"{BASE}/onsite/checkin", json={"token": token}).status_code == 404
+    )
 
 
 def test_repeat_weekly_and_remove_the_following(client, db, club):
@@ -297,26 +348,36 @@ def test_repeat_weekly_and_remove_the_following(client, db, club):
     assert all(e["from"] == "18:00" for e in data["entries"])
     # "Bin da" can't repeat; nor further than a year.
     for body in (
-        {"resourceId": club["room"], "day": _day(0), "status": "here", "repeatUntil": _day(14)},
+        {
+            "resourceId": club["room"],
+            "day": _day(0),
+            "status": "here",
+            "repeatUntil": _day(14),
+        },
         {"resourceId": club["room"], "day": _day(1), "repeatUntil": _day(400)},
     ):
         assert client.put(f"{BASE}/onsite", json=body).status_code == 400, body
     # Removing the third one and the following leaves the first two.
     third = data["entries"][2]["id"]
     assert client.delete(f"{BASE}/onsite/{third}?following=1").status_code == 204
-    left = client.get(f"{BASE}/onsite?from={_day(0)}&to={_day(30)}").get_json()["entries"]
+    left = client.get(f"{BASE}/onsite?from={_day(0)}&to={_day(30)}").get_json()[
+        "entries"
+    ]
     assert [e["day"] for e in left] == [_day(1), _day(8)]
 
 
 def test_check_out(client, db, club):
     _login(client, "max@test.ch")
     entry = client.put(
-        f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(0), "status": "here"}
+        f"{BASE}/onsite",
+        json={"resourceId": club["room"], "day": _day(0), "status": "here"},
     ).get_json()
     r = client.post(f"{BASE}/onsite/{entry['id']}/leave")
     assert r.status_code == 200 and r.get_json()["leftAt"]
     # Not someone else's, not another day.
-    later = client.put(f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(2)}).get_json()
+    later = client.put(
+        f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(2)}
+    ).get_json()
     assert client.post(f"{BASE}/onsite/{later['id']}/leave").status_code == 400
     _login(client, "lea@test.ch")
     assert client.post(f"{BASE}/onsite/{entry['id']}/leave").status_code == 404
@@ -328,7 +389,12 @@ def test_join_someone_s_plan(client, db, club):
     _login(client, "max@test.ch")
     host = client.put(
         f"{BASE}/onsite",
-        json={"resourceId": club["room"], "day": _day(2), "comment": "Boot schleifen", "joinable": True},
+        json={
+            "resourceId": club["room"],
+            "day": _day(2),
+            "comment": "Boot schleifen",
+            "joinable": True,
+        },
     ).get_json()
     assert host["joinable"] is True
     # Can't join oneself.
@@ -341,7 +407,8 @@ def test_join_someone_s_plan(client, db, club):
     )
     _login(client, "lea@test.ch")
     r = client.put(
-        f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(2), "joinsId": host["id"]}
+        f"{BASE}/onsite",
+        json={"resourceId": club["room"], "day": _day(2), "joinsId": host["id"]},
     )
     assert r.status_code == 201 and r.get_json()["joinsId"] == host["id"]
     note = db.session.query(Notification).filter_by(member_id=club["max"]).one()
@@ -349,7 +416,8 @@ def test_join_someone_s_plan(client, db, club):
     # Another day: nothing to join.
     assert (
         client.put(
-            f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(3), "joinsId": host["id"]}
+            f"{BASE}/onsite",
+            json={"resourceId": club["room"], "day": _day(3), "joinsId": host["id"]},
         ).status_code
         == 400
     )
@@ -357,10 +425,17 @@ def test_join_someone_s_plan(client, db, club):
 
 def test_calendar_feed(client, db, club):
     _login(client, "lea@test.ch")
-    client.put(f"{BASE}/onsite/watch", json={"resourceId": club["room"], "watching": True})
+    client.put(
+        f"{BASE}/onsite/watch", json={"resourceId": club["room"], "watching": True}
+    )
     client.put(
         f"{BASE}/onsite",
-        json={"resourceId": club["room"], "day": _day(1), "from": "18:00", "comment": "Fräse; neu"},
+        json={
+            "resourceId": club["room"],
+            "day": _day(1),
+            "from": "18:00",
+            "comment": "Fräse; neu",
+        },
     )
     url = client.get(f"{BASE}/onsite/feed").get_json()["url"]
     assert client.get(f"{BASE}/onsite/feed").get_json()["url"] == url
@@ -399,9 +474,25 @@ def test_key_ping_the_evening_before(db, club):
     db.session.add_all(
         [
             # Kim brought the key a month ago.
-            OnsiteEntry(resource_id=club["room"], member_id=club["kim"], day=today - timedelta(days=30), status="here", key_holder=True),
-            OnsiteEntry(resource_id=club["room"], member_id=club["max"], day=tomorrow, status="going"),
-            OnsiteEntry(resource_id=club["room"], member_id=club["lea"], day=tomorrow, status="maybe"),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["kim"],
+                day=today - timedelta(days=30),
+                status="here",
+                key_holder=True,
+            ),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["max"],
+                day=tomorrow,
+                status="going",
+            ),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["lea"],
+                day=tomorrow,
+                status="maybe",
+            ),
         ]
     )
     db.session.commit()
@@ -420,9 +511,24 @@ def test_stats_for_the_board(client, db, club):
     today = date.today()
     db.session.add_all(
         [
-            OnsiteEntry(resource_id=club["room"], member_id=club["max"], day=today, status="here"),
-            OnsiteEntry(resource_id=club["room"], member_id=club["lea"], day=today, status="going"),
-            OnsiteEntry(resource_id=club["room"], member_id=club["kim"], day=today, status="maybe"),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["max"],
+                day=today,
+                status="here",
+            ),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["lea"],
+                day=today,
+                status="going",
+            ),
+            OnsiteEntry(
+                resource_id=club["room"],
+                member_id=club["kim"],
+                day=today,
+                status="maybe",
+            ),
         ]
     )
     db.session.commit()
@@ -442,3 +548,46 @@ def test_feed_text_cannot_break_the_ics_lines():
     out = _ics_text("Fräse\r\nBEGIN:VEVENT\rX\x00Y")
     assert "\r" not in out and "\n" not in out and "\x00" not in out
     assert out == r"Fräse\nBEGIN:VEVENT\nXY"
+
+
+def test_a_deleted_member_leaves_nothing_behind(client, db, club):
+    """Club schemas may lack the foreign keys that cascade: the hourly job
+    removes a deleted member's Vor Ort rows and their name from bookings."""
+    from sqlalchemy import text
+
+    from hubra_booking.cleanup import purge_orphans
+    from hubra_booking.models import Booking, OnsiteEntry, OnsiteFeed, OnsiteWatch
+
+    _login(client, "max@test.ch")
+    client.put(
+        f"{BASE}/onsite/watch", json={"resourceId": club["room"], "watching": True}
+    )
+    client.put(
+        f"{BASE}/onsite",
+        json={"resourceId": club["room"], "day": _day(1), "comment": "privat"},
+    )
+    client.get(f"{BASE}/onsite/feed")
+    day = date.today() + timedelta(days=2)
+    b = client.post(
+        f"{BASE}/bookings",
+        json={
+            "resourceId": club["room"],
+            "startsAt": f"{day}T10:00",
+            "endsAt": f"{day}T11:00",
+            "note": "privat",
+        },
+    ).get_json()
+    # Gone as a club schema without foreign keys would leave it.
+    db.session.execute(text("PRAGMA foreign_keys=OFF"))
+    db.session.execute(text("DELETE FROM members WHERE id = :id"), {"id": club["max"]})
+    db.session.commit()
+
+    done = purge_orphans()
+    db.session.commit()
+    assert done["onsite"] == 1 and done["watches"] == 1 and done["feeds"] == 1
+    assert db.session.query(OnsiteEntry).count() == 0
+    assert db.session.query(OnsiteWatch).count() == 0
+    assert db.session.query(OnsiteFeed).count() == 0
+    kept = db.session.get(Booking, b["id"])
+    assert kept.member_id is None and kept.note is None and kept.created_by is None
+    assert purge_orphans()["bookings"] == 0
