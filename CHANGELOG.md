@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Vor Ort moves to Anlässe:** it is a tab on the events page (Anlässe ›
+  Vor Ort) instead of a sidebar entry of its own. Old links (notifications,
+  the daily Discord post, the dashboard widgets, a room's QR check-in) open
+  the tab. A club without the events module keeps Vor Ort as a Reservationen
+  tab. Needs the Hubra release that brings the "events" tab screen.
 - **Vor Ort** on the phone shows the whole week or month (not only one day),
   one room at a time: pick the room at the top. The week lists its seven
   days with who comes; the month shows how many come and the key, and a day
