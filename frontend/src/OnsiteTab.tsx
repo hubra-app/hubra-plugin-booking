@@ -10,6 +10,7 @@ import {
   Paper,
   ScrollArea,
   SegmentedControl,
+  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -24,6 +25,7 @@ import {
   IconChevronRight,
   IconDoorOff,
   IconKey,
+  IconMapPin,
   IconPlus,
   IconPrinter,
   IconQrcode,
@@ -64,14 +66,48 @@ function timeText(e: OnsiteEntry, t: (k: string, o?: Record<string, unknown>) =>
   return ''
 }
 
+/** How many are coming to a room (or to any room) on a day. */
+function summary(entries: OnsiteEntry[], day: string, roomId?: number) {
+  const people = entries.filter((e) => e.day === day && (roomId == null || e.resourceId === roomId))
+  return {
+    people,
+    count: people.length,
+    sure: people.some((e) => e.status !== 'maybe'),
+    mine: people.some((e) => e.mine),
+    key: people.some((e) => e.keyHolder),
+  }
+}
+
+/** A small round count: violet when the caller is in, green when someone is
+ * sure, yellow when all are maybe. */
+function CountDot({ s, size = 'sm' }: { s: ReturnType<typeof summary>; size?: 'xs' | 'sm' }) {
+  if (!s.count) return null
+  return (
+    <Badge
+      size={size}
+      circle
+      variant={s.mine ? 'filled' : 'light'}
+      color={s.mine ? 'violet' : s.sure ? 'green' : 'yellow'}
+      title={s.people.map((e) => e.memberName).join(', ')}
+    >
+      {s.count}
+    </Badge>
+  )
+}
+
+const VIEW_KEY = 'booking.onsiteView'
+
 /** Vor Ort: who plans to be in which room on which day. A week of days by
- * rooms (a day on the phone); a cell shows the people, the key, and when the
- * room is booked. */
+ * rooms or a month; on the phone the week or month is an overview and the
+ * picked day's rooms show below it. Under the calendar, the next two weeks
+ * as a list of days. */
 export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
   const { t, i18n } = useT()
   const qc = useQueryClient()
   const phone = useMediaQuery('(max-width: 48em)')
   const { run } = useAction()
+  // The picked day: the week or month around it is shown, and on the phone
+  // its rooms are listed under the calendar.
   const [anchor, setAnchor] = useState(() => {
     const asked = new URLSearchParams(window.location.search).get('day')
     return asked ? new Date(`${asked}T12:00`) : new Date()
@@ -82,7 +118,7 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
   const [qrFor, setQrFor] = useState<Room | null>(null)
   const [view, setView] = useState<'week' | 'month'>(() => {
     try {
-      return localStorage.getItem('booking.onsiteView') === 'month' ? 'month' : 'week'
+      return localStorage.getItem(VIEW_KEY) === 'month' ? 'month' : 'week'
     } catch {
       return 'week'
     }
@@ -90,7 +126,7 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
   const pickView = (v: 'week' | 'month') => {
     setView(v)
     try {
-      localStorage.setItem('booking.onsiteView', v)
+      localStorage.setItem(VIEW_KEY, v)
     } catch {
       /* private mode */
     }
@@ -103,13 +139,18 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
       const first = weekStart(new Date(anchor.getFullYear(), anchor.getMonth(), 1))
       return Array.from({ length: 42 }, (_, i) => addDays(first, i))
     }
-    if (phone) return [new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())]
     const first = weekStart(anchor)
     return Array.from({ length: 7 }, (_, i) => addDays(first, i))
-  }, [anchor, phone, month])
+  }, [anchor, month])
   const from = isoDay(days[0])
   const to = isoDay(addDays(days[days.length - 1], 1))
   const data = useQuery({ queryKey: QK.onsite(from, to), queryFn: () => listOnsite(from, to) })
+  const soonFrom = isoDay(new Date())
+  const soonTo = isoDay(addDays(new Date(), NEXT_DAYS))
+  const soon = useQuery({
+    queryKey: QK.onsite(soonFrom, soonTo),
+    queryFn: () => listOnsite(soonFrom, soonTo),
+  })
   const locale = i18n.language?.startsWith('de') ? 'de-CH' : 'en-GB'
   const today = data.data?.today ?? isoDay(new Date())
 
@@ -126,6 +167,7 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
       />
     )
 
+  const picked = isoDay(anchor)
   const refresh = () => qc.invalidateQueries({ queryKey: ['booking', 'onsite'] })
   const quick = (room: Room, day: string, status: OnsiteStatus) =>
     run(() => setOnsite({ resourceId: room.id, day, status }), t('booking.onsite.saved')).then(
@@ -145,22 +187,16 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
 
   const shift = (n: number) =>
     setAnchor(
-      month
-        ? new Date(anchor.getFullYear(), anchor.getMonth() + n, 1)
-        : addDays(anchor, n * (phone ? 1 : 7)),
+      month ? new Date(anchor.getFullYear(), anchor.getMonth() + n, 1) : addDays(anchor, n * 7),
     )
   const rangeLabel = month
     ? anchor.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
-    : phone
-      ? days[0].toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })
-      : `${days[0].toLocaleDateString(locale, { day: 'numeric', month: 'short' })} – ${days[6].toLocaleDateString(
-          locale,
-          {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-          },
-        )}`
+    : `${days[0].toLocaleDateString(locale, { day: 'numeric', month: 'short' })} – ${days[6].toLocaleDateString(
+        locale,
+        phone
+          ? { day: 'numeric', month: 'short' }
+          : { day: 'numeric', month: 'short', year: 'numeric' },
+      )}`
 
   const cell = (room: Room, d: Date) => {
     const day = isoDay(d)
@@ -183,11 +219,45 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
       />
     )
   }
+  const roomHead = (room: Room) => (
+    <RoomHead
+      room={room}
+      watching={watching.includes(room.id)}
+      onWatch={() => toggleWatch(room)}
+      onQr={canManage ? () => setQrFor(room) : undefined}
+    />
+  )
+
+  const border = '1px solid var(--mantine-color-default-border)'
+  const legend = (
+    <Group gap={6}>
+      {(['going', 'maybe', 'here'] as OnsiteStatus[]).map((s) => (
+        <Badge
+          key={s}
+          size="sm"
+          variant="light"
+          color={ONSITE_COLOR[s]}
+          style={{ textTransform: 'none' }}
+        >
+          {t(`booking.onsite.status.${s}`)}
+        </Badge>
+      ))}
+      <Badge
+        size="sm"
+        variant="light"
+        color="gray"
+        leftSection={<IconKey size={11} />}
+        style={{ textTransform: 'none' }}
+      >
+        {t('booking.onsite.key')}
+      </Badge>
+    </Group>
+  )
 
   return (
     <Stack gap="md">
       <Group justify="space-between" wrap="wrap" gap="sm">
-        <Group gap="sm" wrap="wrap">
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
           <Group gap={4} wrap="nowrap">
             <ActionIcon
               variant="default"
@@ -209,69 +279,55 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
               <IconChevronRight size={16} />
             </ActionIcon>
           </Group>
-          <Text fw={600}>{rangeLabel}</Text>
+          <Text fw={600} truncate>
+            {rangeLabel}
+          </Text>
         </Group>
-        <SegmentedControl
-          size="xs"
-          value={view}
-          onChange={(v) => pickView(v as 'week' | 'month')}
-          data={[
-            { value: 'week', label: t('booking.onsite.week') },
-            { value: 'month', label: t('booking.onsite.month') },
-          ]}
-        />
-        <Group gap="xs">
-          {(['going', 'maybe', 'here'] as OnsiteStatus[]).map((s) => (
-            <Badge
-              key={s}
-              variant="light"
-              color={ONSITE_COLOR[s]}
-              style={{ textTransform: 'none' }}
-            >
-              {t(`booking.onsite.status.${s}`)}
-            </Badge>
-          ))}
-          <Badge
-            variant="light"
-            color="gray"
-            leftSection={<IconKey size={12} />}
-            style={{ textTransform: 'none' }}
-          >
-            {t('booking.onsite.key')}
-          </Badge>
-        </Group>
+        <Box w={phone ? '100%' : undefined}>
+          <SegmentedControl
+            size={phone ? 'sm' : 'xs'}
+            fullWidth={phone}
+            value={view}
+            onChange={(v) => pickView(v as 'week' | 'month')}
+            data={[
+              { value: 'week', label: t('booking.onsite.week') },
+              { value: 'month', label: t('booking.onsite.month') },
+            ]}
+          />
+        </Box>
       </Group>
-      <Text size="sm" c="dimmed">
-        {t('booking.onsite.intro')}
-      </Text>
+      <Stack gap={6}>
+        <Text size="sm" c="dimmed">
+          {t('booking.onsite.intro')}
+        </Text>
+        {legend}
+      </Stack>
 
       {month ? (
         <MonthGrid
           days={days}
           inMonth={anchor.getMonth()}
           today={today}
+          picked={phone ? picked : undefined}
+          compact={!!phone}
           locale={locale}
           rooms={rooms}
           entries={entries}
           onPick={(d) => {
             setAnchor(d)
-            pickView('week')
+            if (!phone) pickView('week')
           }}
         />
       ) : phone ? (
-        <Stack gap="sm">
-          {rooms.map((room) => (
-            <Paper key={room.id} withBorder radius="md" p="sm">
-              <RoomHead
-                room={room}
-                watching={watching.includes(room.id)}
-                onWatch={() => toggleWatch(room)}
-                onQr={canManage ? () => setQrFor(room) : undefined}
-              />
-              <Box mt="xs">{cell(room, days[0])}</Box>
-            </Paper>
-          ))}
-        </Stack>
+        <WeekStrip
+          days={days}
+          picked={picked}
+          today={today}
+          locale={locale}
+          rooms={rooms}
+          entries={entries}
+          onPick={setAnchor}
+        />
       ) : (
         <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
           <ScrollArea type="auto">
@@ -282,17 +338,27 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
                 minWidth: 1020,
               }}
             >
-              <div style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }} />
+              <div
+                style={{
+                  borderBottom: border,
+                  position: 'sticky',
+                  left: 0,
+                  zIndex: 1,
+                  background: 'var(--mantine-color-body)',
+                }}
+              />
               {days.map((d) => {
                 const day = isoDay(d)
+                const s = summary(entries, day)
                 return (
                   <Box
                     key={day}
                     py={6}
                     ta="center"
                     style={{
-                      borderLeft: '1px solid var(--mantine-color-default-border)',
-                      borderBottom: '1px solid var(--mantine-color-default-border)',
+                      borderLeft: border,
+                      borderBottom: border,
+                      background: day === today ? 'var(--mantine-color-violet-light)' : undefined,
                     }}
                   >
                     <Text size="xs" c="dimmed" tt="uppercase">
@@ -300,6 +366,9 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
                     </Text>
                     <Text fw={day === today ? 700 : 500} c={day === today ? 'violet' : undefined}>
                       {d.getDate()}
+                    </Text>
+                    <Text size="xs" c="dimmed" h={18}>
+                      {s.count ? t('booking.onsite.people', { count: s.count }) : ''}
                     </Text>
                   </Box>
                 )
@@ -309,36 +378,70 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
                   <Box
                     p="sm"
                     style={{
-                      borderTop: i ? '1px solid var(--mantine-color-default-border)' : undefined,
+                      borderTop: i ? border : undefined,
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: 1,
+                      background: 'var(--mantine-color-body)',
                     }}
                   >
-                    <RoomHead
-                      room={room}
-                      watching={watching.includes(room.id)}
-                      onWatch={() => toggleWatch(room)}
-                      onQr={canManage ? () => setQrFor(room) : undefined}
-                    />
+                    {roomHead(room)}
                   </Box>
-                  {days.map((d) => (
-                    <Box
-                      key={isoDay(d)}
-                      p={6}
-                      style={{
-                        borderLeft: '1px solid var(--mantine-color-default-border)',
-                        borderTop: i ? '1px solid var(--mantine-color-default-border)' : undefined,
-                        background:
-                          isoDay(d) < today ? 'var(--mantine-color-default-hover)' : undefined,
-                      }}
-                    >
-                      {cell(room, d)}
-                    </Box>
-                  ))}
+                  {days.map((d) => {
+                    const day = isoDay(d)
+                    return (
+                      <Box
+                        key={day}
+                        p={6}
+                        style={{
+                          borderLeft: border,
+                          borderTop: i ? border : undefined,
+                          background:
+                            day < today
+                              ? 'var(--mantine-color-default-hover)'
+                              : day === today
+                                ? 'color-mix(in srgb, var(--mantine-color-violet-light) 45%, transparent)'
+                                : undefined,
+                        }}
+                      >
+                        {cell(room, d)}
+                      </Box>
+                    )
+                  })}
                 </Box>
               ))}
             </Box>
           </ScrollArea>
         </Paper>
       )}
+
+      {phone && (
+        <Stack gap="sm">
+          <Text fw={600}>
+            {anchor.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}
+          </Text>
+          {rooms.map((room) => (
+            <Paper key={room.id} withBorder radius="md" p="sm">
+              {roomHead(room)}
+              <Box mt="xs">{cell(room, anchor)}</Box>
+            </Paper>
+          ))}
+        </Stack>
+      )}
+
+      <NextDays
+        data={soon.data}
+        loading={soon.isLoading}
+        locale={locale}
+        onEdit={(room, day, entry) => setEditing({ room, day, entry })}
+        onQuick={quick}
+        onPick={(day) => {
+          setAnchor(new Date(`${day}T12:00`))
+          if (!phone) pickView('week')
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+      />
+
       {qrFor && <QrModal room={qrFor} onClose={() => setQrFor(null)} />}
       {editing && (
         <OnsiteModal
@@ -354,12 +457,125 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
   )
 }
 
-/** A month: per day and room how many are coming, and the key. A day opens
- * its week. */
+/** The phone's week: a column per day, a row per room with how many come.
+ * Tapping a day lists its rooms below. */
+function WeekStrip({
+  days,
+  picked,
+  today,
+  locale,
+  rooms,
+  entries,
+  onPick,
+}: {
+  days: Date[]
+  picked: string
+  today: string
+  locale: string
+  rooms: Room[]
+  entries: OnsiteEntry[]
+  onPick: (d: Date) => void
+}) {
+  const border = '1px solid var(--mantine-color-default-border)'
+  const col = (day: string) => ({
+    background:
+      day === picked
+        ? 'var(--mantine-color-violet-light)'
+        : day < today
+          ? 'var(--mantine-color-default-hover)'
+          : undefined,
+  })
+  return (
+    <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+      <Box style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+        {days.map((d) => {
+          const day = isoDay(d)
+          return (
+            <UnstyledButton
+              key={day}
+              onClick={() => onPick(d)}
+              aria-pressed={day === picked}
+              aria-label={d.toLocaleDateString(locale, {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              })}
+              py={6}
+              ta="center"
+              style={{ ...col(day), borderBottom: border }}
+            >
+              <Text size="xs" c="dimmed" tt="uppercase">
+                {d.toLocaleDateString(locale, { weekday: 'short' }).slice(0, 2)}
+              </Text>
+              <Text
+                fw={day === today || day === picked ? 700 : 500}
+                c={day === today ? 'violet' : undefined}
+              >
+                {d.getDate()}
+              </Text>
+            </UnstyledButton>
+          )
+        })}
+        {rooms.map((room, i) => (
+          <Box key={room.id} style={{ display: 'contents' }}>
+            <Text
+              size="xs"
+              fw={600}
+              c="dimmed"
+              px={8}
+              pt={6}
+              truncate
+              style={{ gridColumn: '1 / -1', borderTop: i ? border : undefined }}
+            >
+              {room.name}
+            </Text>
+            {days.map((d) => {
+              const day = isoDay(d)
+              const s = summary(entries, day, room.id)
+              return (
+                <UnstyledButton
+                  key={day}
+                  onClick={() => onPick(d)}
+                  tabIndex={-1}
+                  aria-hidden
+                  h={34}
+                  style={{
+                    ...col(day),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 2,
+                  }}
+                >
+                  {s.count ? (
+                    <>
+                      <CountDot s={s} />
+                      {s.key && <IconKey size={11} />}
+                    </>
+                  ) : (
+                    <Text size="xs" c="dimmed">
+                      ·
+                    </Text>
+                  )}
+                </UnstyledButton>
+              )
+            })}
+          </Box>
+        ))}
+      </Box>
+    </Paper>
+  )
+}
+
+/** A month: per day and room how many are coming, and the key. On a wide
+ * screen a day opens its week; on the phone (compact) a day shows the total
+ * and is picked. */
 function MonthGrid({
   days,
   inMonth,
   today,
+  picked,
+  compact,
   locale,
   rooms,
   entries,
@@ -368,6 +584,8 @@ function MonthGrid({
   days: Date[]
   inMonth: number
   today: string
+  picked?: string
+  compact: boolean
   locale: string
   rooms: Room[]
   entries: OnsiteEntry[]
@@ -388,71 +606,291 @@ function MonthGrid({
             py={4}
             style={{ borderBottom: border }}
           >
-            {d.toLocaleDateString(locale, { weekday: 'short' })}
+            {d.toLocaleDateString(locale, { weekday: 'short' }).slice(0, compact ? 2 : undefined)}
           </Text>
         ))}
         {days.map((d, i) => {
           const day = isoDay(d)
-          const here = entries.filter((e) => e.day === day)
-          const mine = here.some((e) => e.mine)
+          const all = summary(entries, day)
           return (
             <UnstyledButton
               key={day}
               onClick={() => onPick(d)}
+              aria-pressed={picked ? day === picked : undefined}
               aria-label={d.toLocaleDateString(locale, {
                 weekday: 'long',
                 day: 'numeric',
                 month: 'long',
               })}
-              p={6}
+              p={compact ? 4 : 6}
               style={{
-                minHeight: 76,
+                minHeight: compact ? 54 : 76,
                 borderLeft: i % 7 ? border : undefined,
                 borderTop: i >= 7 ? border : undefined,
-                background: day < today ? 'var(--mantine-color-default-hover)' : undefined,
+                background:
+                  day === picked
+                    ? 'var(--mantine-color-violet-light)'
+                    : day < today
+                      ? 'var(--mantine-color-default-hover)'
+                      : undefined,
                 opacity: d.getMonth() === inMonth ? 1 : 0.45,
-                outline: mine ? '2px solid var(--mantine-color-violet-filled)' : undefined,
+                outline:
+                  !compact && all.mine ? '2px solid var(--mantine-color-violet-filled)' : undefined,
                 outlineOffset: -2,
               }}
             >
               <Text
                 size="sm"
+                ta={compact ? 'center' : undefined}
                 fw={day === today ? 700 : 500}
                 c={day === today ? 'violet' : undefined}
               >
                 {d.getDate()}
               </Text>
-              <Stack gap={2} mt={2}>
-                {rooms.map((room) => {
-                  const people = here.filter((e) => e.resourceId === room.id)
-                  if (!people.length) return null
-                  const sure = people.filter((e) => e.status !== 'maybe').length
-                  return (
-                    <Group key={room.id} gap={4} wrap="nowrap">
-                      <Badge
-                        size="sm"
-                        variant="light"
-                        color={sure ? 'green' : 'yellow'}
-                        style={{ textTransform: 'none', flexShrink: 0 }}
-                        title={people.map((e) => e.memberName).join(', ')}
-                      >
-                        {t('booking.onsite.count', { count: people.length })}
-                      </Badge>
-                      <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
-                        {room.name}
-                      </Text>
-                      {people.some((e) => e.keyHolder) && (
-                        <IconKey size={12} aria-label={t('booking.onsite.key')} />
-                      )}
-                    </Group>
-                  )
-                })}
-              </Stack>
+              {compact ? (
+                all.count > 0 && (
+                  <Group gap={2} justify="center" wrap="nowrap" mt={2}>
+                    <CountDot s={all} size="xs" />
+                    {all.key && <IconKey size={10} />}
+                  </Group>
+                )
+              ) : (
+                <Stack gap={2} mt={2}>
+                  {rooms.map((room) => {
+                    const s = summary(entries, day, room.id)
+                    if (!s.count) return null
+                    return (
+                      <Group key={room.id} gap={4} wrap="nowrap">
+                        <Badge
+                          size="sm"
+                          variant="light"
+                          color={s.sure ? 'green' : 'yellow'}
+                          style={{ textTransform: 'none', flexShrink: 0 }}
+                          title={s.people.map((e) => e.memberName).join(', ')}
+                        >
+                          {t('booking.onsite.count', { count: s.count })}
+                        </Badge>
+                        <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
+                          {room.name}
+                        </Text>
+                        {s.key && <IconKey size={12} aria-label={t('booking.onsite.key')} />}
+                      </Group>
+                    )
+                  })}
+                </Stack>
+              )}
             </UnstyledButton>
           )
         })}
       </Box>
     </Paper>
+  )
+}
+
+/** How far ahead the list under the calendar looks. */
+const NEXT_DAYS = 14
+
+/** Under the calendar: the next two weeks, a card per day with who comes to
+ * which room. */
+function NextDays({
+  data,
+  loading,
+  locale,
+  onEdit,
+  onQuick,
+  onPick,
+}: {
+  data?: OnsiteData
+  loading: boolean
+  locale: string
+  onEdit: (room: Room, day: string, entry?: OnsiteEntry) => void
+  onQuick: (room: Room, day: string, status: OnsiteStatus) => void
+  onPick: (day: string) => void
+}) {
+  const { t } = useT()
+  const today = data?.today ?? isoDay(new Date())
+  const tomorrow = isoDay(addDays(new Date(`${today}T12:00`), 1))
+  const groups = useMemo(() => {
+    if (!data) return []
+    const byDay = new Map<string, OnsiteEntry[]>()
+    for (const e of data.entries) {
+      if (e.day < today) continue
+      byDay.set(e.day, [...(byDay.get(e.day) ?? []), e])
+    }
+    return [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, list]) => ({
+        day,
+        rooms: data.rooms
+          .map((room) => ({
+            room,
+            people: list
+              .filter((e) => e.resourceId === room.id)
+              .sort(
+                (a, b) =>
+                  Number(b.mine) - Number(a.mine) || (a.from ?? '').localeCompare(b.from ?? ''),
+              ),
+          }))
+          .filter((r) => r.people.length),
+      }))
+  }, [data, today])
+
+  return (
+    <Stack gap="sm" mt="md">
+      <Box>
+        <Text fw={700} size="lg">
+          {t('booking.onsite.next.title')}
+        </Text>
+        <Text size="sm" c="dimmed">
+          {t('booking.onsite.next.hint')}
+        </Text>
+      </Box>
+      {loading ? (
+        <LoadingSpinner />
+      ) : !groups.length ? (
+        <Paper withBorder radius="md" p="md">
+          <Text size="sm" c="dimmed">
+            {t('booking.onsite.next.empty')}
+          </Text>
+        </Paper>
+      ) : (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
+          {groups.map(({ day, rooms }) => {
+            const d = new Date(`${day}T12:00`)
+            const total = rooms.reduce((n, r) => n + r.people.length, 0)
+            return (
+              <Paper key={day} withBorder radius="md" p="sm">
+                <Group justify="space-between" wrap="nowrap" gap="xs" mb="xs">
+                  <UnstyledButton onClick={() => onPick(day)} style={{ minWidth: 0 }}>
+                    <Group gap={8} wrap="nowrap">
+                      <Box
+                        w={40}
+                        ta="center"
+                        py={2}
+                        style={{
+                          borderRadius: 8,
+                          background:
+                            day === today
+                              ? 'var(--mantine-color-violet-filled)'
+                              : 'var(--mantine-color-default-hover)',
+                          color: day === today ? 'var(--mantine-color-white)' : undefined,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Text
+                          size="xs"
+                          tt="uppercase"
+                          lh={1.2}
+                          c={day === today ? 'inherit' : 'dimmed'}
+                        >
+                          {d.toLocaleDateString(locale, { weekday: 'short' }).slice(0, 2)}
+                        </Text>
+                        <Text fw={700} lh={1.2}>
+                          {d.getDate()}
+                        </Text>
+                      </Box>
+                      <Box style={{ minWidth: 0 }}>
+                        <Text fw={600} truncate>
+                          {day === today
+                            ? t('booking.calendar.today')
+                            : day === tomorrow
+                              ? t('booking.onsite.next.tomorrow')
+                              : d.toLocaleDateString(locale, { weekday: 'long' })}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {d.toLocaleDateString(locale, { day: 'numeric', month: 'long' })}
+                        </Text>
+                      </Box>
+                    </Group>
+                  </UnstyledButton>
+                  <Badge
+                    variant="light"
+                    color="gray"
+                    style={{ textTransform: 'none', flexShrink: 0 }}
+                  >
+                    {t('booking.onsite.people', { count: total })}
+                  </Badge>
+                </Group>
+                <Stack gap="sm">
+                  {rooms.map(({ room, people }) => {
+                    const mine = people.find((e) => e.mine)
+                    const key = people.some((e) => e.keyHolder)
+                    return (
+                      <Box key={room.id}>
+                        <Group justify="space-between" gap={4} wrap="nowrap" mb={4}>
+                          <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                            <IconMapPin size={14} style={{ flexShrink: 0 }} />
+                            <Text size="sm" fw={600} truncate>
+                              {room.name}
+                            </Text>
+                            {!key && (
+                              <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+                                · {t('booking.onsite.noKey')}
+                              </Text>
+                            )}
+                          </Group>
+                          {!mine && (
+                            <Button
+                              size="compact-xs"
+                              variant="light"
+                              onClick={() => onQuick(room, day, day === today ? 'here' : 'going')}
+                            >
+                              {day === today
+                                ? t('booking.onsite.imHere')
+                                : t('booking.onsite.meToo')}
+                            </Button>
+                          )}
+                        </Group>
+                        <Stack gap={4}>
+                          {people.map((e) => (
+                            <EntryLine
+                              key={e.id}
+                              e={e}
+                              onEdit={e.mine ? () => onEdit(room, day, e) : undefined}
+                            />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )
+                  })}
+                </Stack>
+              </Paper>
+            )
+          })}
+        </SimpleGrid>
+      )}
+    </Stack>
+  )
+}
+
+/** One person's entry: name, key, time and comment, in the status colour. */
+function EntryLine({ e, onEdit }: { e: OnsiteEntry; onEdit?: () => void }) {
+  const { t } = useT()
+  return (
+    <UnstyledButton
+      onClick={onEdit}
+      style={{
+        cursor: onEdit ? 'pointer' : 'default',
+        borderRadius: 6,
+        padding: '2px 6px',
+        borderLeft: `3px solid var(--mantine-color-${ONSITE_COLOR[e.status]}-filled)`,
+        background: `var(--mantine-color-${ONSITE_COLOR[e.status]}-light)`,
+        opacity: e.status === 'maybe' ? 0.85 : 1,
+      }}
+      title={e.comment ?? undefined}
+    >
+      <Group gap={4} wrap="nowrap">
+        <Text size="xs" fw={e.mine ? 700 : 500} truncate style={{ flex: 1 }}>
+          {e.mine ? t('booking.onsite.me') : e.memberName}
+        </Text>
+        {e.keyHolder && <IconKey size={12} aria-label={t('booking.onsite.key')} />}
+      </Group>
+      {(e.from || e.to || e.comment) && (
+        <Text size="xs" c="dimmed" lh={1.3} truncate>
+          {[timeText(e, t), e.comment].filter(Boolean).join(' · ')}
+        </Text>
+      )}
+    </UnstyledButton>
   )
 }
 
@@ -542,31 +980,7 @@ function Cell({
         </Text>
       ))}
       {people.map((e) => (
-        <UnstyledButton
-          key={e.id}
-          onClick={() => (e.mine && !past ? onEdit(e) : undefined)}
-          style={{
-            cursor: e.mine && !past ? 'pointer' : 'default',
-            borderRadius: 6,
-            padding: '2px 6px',
-            borderLeft: `3px solid var(--mantine-color-${ONSITE_COLOR[e.status]}-filled)`,
-            background: `var(--mantine-color-${ONSITE_COLOR[e.status]}-light)`,
-            opacity: e.status === 'maybe' ? 0.85 : 1,
-          }}
-          title={e.comment ?? undefined}
-        >
-          <Group gap={4} wrap="nowrap">
-            <Text size="xs" fw={e.mine ? 700 : 500} truncate style={{ flex: 1 }}>
-              {e.mine ? t('booking.onsite.me') : e.memberName}
-            </Text>
-            {e.keyHolder && <IconKey size={12} aria-label={t('booking.onsite.key')} />}
-          </Group>
-          {(e.from || e.to || e.comment) && (
-            <Text size="xs" c="dimmed" lh={1.3} truncate>
-              {[timeText(e, t), e.comment].filter(Boolean).join(' · ')}
-            </Text>
-          )}
-        </UnstyledButton>
+        <EntryLine key={e.id} e={e} onEdit={e.mine && !past ? () => onEdit(e) : undefined} />
       ))}
       {!past && !mine && (
         <Group gap={4} wrap="nowrap">

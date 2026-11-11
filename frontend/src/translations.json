@@ -189,7 +189,15 @@
         "qrPrint": "Print",
         "qrRenew": "New code",
         "qrRenewed": "New code made; printed old codes no longer work",
-        "close": "Close"
+        "close": "Close",
+        "people_one": "{{count}} person",
+        "people_other": "{{count}} people",
+        "next": {
+          "title": "The next 2 weeks",
+          "hint": "Who is coming to which room on which day.",
+          "empty": "Nobody has signed up for the next two weeks yet.",
+          "tomorrow": "Tomorrow"
+        }
       },
       "widget": {
         "today": "Onsite today",
@@ -401,7 +409,15 @@
         "qrPrint": "Drucken",
         "qrRenew": "Neuer Code",
         "qrRenewed": "Neuer Code erstellt; alte Ausdrucke gelten nicht mehr",
-        "close": "Schliessen"
+        "close": "Schliessen",
+        "people_one": "{{count}} Person",
+        "people_other": "{{count}} Personen",
+        "next": {
+          "title": "Die nächsten 2 Wochen",
+          "hint": "Wer an welchem Tag in welchen Raum kommt.",
+          "empty": "In den nächsten zwei Wochen hat sich noch niemand eingetragen.",
+          "tomorrow": "Morgen"
+        }
       },
       "widget": {
         "today": "Heute vor Ort",

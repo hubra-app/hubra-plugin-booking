@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Vor Ort** on the phone shows the whole week or month (not only one day):
+  a compact grid with how many come to each room per day and who brings the
+  key; tap a day to see its rooms and sign up below. On a wide screen the
+  week shows today's column and how many come each day, and the room column
+  stays in view when scrolling sideways.
+- **Vor Ort** lists the next 2 weeks under the calendar: a card per day with
+  who comes to which room, times and comments, the key, and "Ich auch".
 - **Vor Ort** has its own sidebar entry (Erweiterungen › Vor Ort), so members
   find it without opening Reservationen first. Hubra puts "Heute vor Ort" on
   the built-in Dashboard › Persönlich while Booking is on.
