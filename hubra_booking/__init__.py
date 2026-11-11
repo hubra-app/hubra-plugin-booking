@@ -59,6 +59,13 @@ module = Module(
     ),
     settings=(
         SettingField(
+            "max_pending",
+            "int",
+            5,
+            label="Offene Anfragen pro Mitglied",
+            description="Wie viele Buchungen, die auf Freigabe warten, ein Mitglied gleichzeitig haben darf (0 = keine Grenze).",
+        ),
+        SettingField(
             "onsite_keep_days",
             "int",
             365,

@@ -376,12 +376,15 @@ def test_the_item_panel_keeps_items_to_those_who_may_see_them(
     got = client.get(f"{BASE}/resources/by-item/9").get_json()
     assert got["resource"] is None and got["item"] is None
 
-    # Once it is a bookable resource every member sees it in Booking anyway.
+    # Managing resources isn't a right to read the inventory either.
     _login(client, "kim@test.ch")
-    assert (
-        client.get(f"{BASE}/resources/by-item/9").get_json()["item"]["name"] == "Laser"
-    )
+    assert client.get(f"{BASE}/resources/by-item/9").get_json()["item"] is None
+    assert client.get(f"{BASE}/inventory-items").get_json() == []
+
+    # Once it is a bookable resource every member sees it in Booking anyway.
+    monkeypatch.setitem(registry._modules, "inventory", inventory)
     client.post(f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 9})
+    monkeypatch.setitem(registry._modules, "inventory", guarded)
     _login(client, "max@test.ch")
     got = client.get(f"{BASE}/resources/by-item/9").get_json()
     assert got["resource"]["name"] == "Laser" and got["item"]["name"] == "Laser"
@@ -431,3 +434,44 @@ def test_a_member_cannot_cancel_part_of_a_series(client, db, club):
     b = db.session.get(Booking, made[1]["id"])
     assert b.status == "approved" and b.invoice_id == made[1]["invoiceId"]
     assert db.session.get(Invoice, made[1]["invoiceId"]) is not None
+
+
+def test_members_have_only_so_many_requests_waiting(client, db, club, monkeypatch):
+    from hubra_booking import onsite
+
+    real = onsite.setting
+
+    _login(client, "kim@test.ch")
+    room = client.post(
+        f"{BASE}/resources",
+        json={"name": "Saal", "kind": "room", "needsApproval": True},
+    ).get_json()
+    monkeypatch.setattr(
+        onsite, "setting", lambda key: 2 if key == "max_pending" else real(key)
+    )
+    _login(client, "max@test.ch")
+    for d in (2, 3):
+        r = client.post(
+            f"{BASE}/bookings", json={"resourceId": room["id"], **_slot(d, 9, 10)}
+        )
+        assert r.status_code == 201 and r.get_json()["status"] == "pending"
+    third = client.post(
+        f"{BASE}/bookings", json={"resourceId": room["id"], **_slot(4, 9, 10)}
+    )
+    assert third.status_code == 409 and third.get_json()["error"] == "TOO_MANY_PENDING"
+    # Lea has her own count; the board isn't limited.
+    _login(client, "lea@test.ch")
+    assert (
+        client.post(
+            f"{BASE}/bookings", json={"resourceId": room["id"], **_slot(4, 9, 10)}
+        ).status_code
+        == 201
+    )
+    _login(client, "kim@test.ch")
+    assert (
+        client.post(
+            f"{BASE}/bookings",
+            json={"resourceId": room["id"], "memberId": club["max"], **_slot(5, 9, 10)},
+        ).status_code
+        == 201
+    )

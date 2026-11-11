@@ -50,6 +50,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from flask import jsonify, request
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from hubra.core.auth.helpers import get_current_member
 from hubra.core.errors import api_error
@@ -77,6 +78,7 @@ MAX_RANGE = timedelta(days=62)
 # Settings (Einstellungen › Module › Booking) and their defaults.
 KEEP_MIN = 365
 DEFAULTS = {
+    "max_pending": 5,
     "onsite_keep_days": KEEP_MIN,
     "onsite_reminder_hour": 18,
     "onsite_today_hour": 7,
@@ -102,6 +104,8 @@ def setting(key: str) -> int:
         return DEFAULTS[key]
     if key == "onsite_keep_days":
         return max(value, KEEP_MIN)
+    if key == "max_pending":
+        return min(max(value, 0), 1000)
     return min(max(value, 0), 23)
 
 
@@ -305,16 +309,27 @@ def register(bp) -> None:
             "comment": _text(data, "comment", 300),
             "joinable": bool(data.get("joinable")) and host is None,
         }
-        first, created_first = None, False
-        for d in days:
-            entry, created = _upsert(member.id, resource_id, d, fields)
-            if series:
-                entry.series = series
-            elif d == day and "joinsId" in data:
-                entry.joins_id = host.id if host else None
-            if first is None:
-                first, created_first = entry, created
-        db.session.flush()
+
+        def write():
+            first, created_first = None, False
+            for d in days:
+                entry, created = _upsert(member.id, resource_id, d, fields)
+                if series:
+                    entry.series = series
+                elif d == day and "joinsId" in data:
+                    entry.joins_id = host.id if host else None
+                if first is None:
+                    first, created_first = entry, created
+            db.session.flush()
+            return first, created_first
+
+        # Two requests for the same day at once (a double tap): the second
+        # insert hits the unique key; it then changes the row the first made.
+        try:
+            with db.session.begin_nested():
+                first, created_first = write()
+        except IntegrityError:
+            first, created_first = write()
         if created_first:
             tell_watchers(first, member, until=days[-1] if series else None)
         if host is not None:

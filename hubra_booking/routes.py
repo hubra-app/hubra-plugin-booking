@@ -397,11 +397,10 @@ def resource_by_item(item_id: int):
     )
     if r is not None and not r.active and not manager:
         r = None
-    # A bookable resource shows its item to every member anyway, and those
-    # who manage resources pick from all items; anyone else reads the item
-    # with their own Inventory rights, so this route doesn't reveal items to
-    # members who may not see the inventory.
-    items = _inventory_items([item_id], actor=SYSTEM if r or manager else member)
+    # A bookable resource shows its item to every member anyway; any other
+    # item is read with the caller's own Inventory rights, so this route
+    # doesn't reveal items to members who may not see the inventory.
+    items = _inventory_items([item_id], actor=SYSTEM if r else member)
     item = items.get(item_id)
     return jsonify(
         {
@@ -424,13 +423,14 @@ def inventory_items():
     if not available(_LIST_ITEMS):
         return jsonify([])
     try:
+        # With the caller's own Inventory rights: managing resources isn't
+        # a right to read the whole inventory.
         items = contract_query(
             _LIST_ITEMS,
             search=request.args.get("search") or None,
             limit=500,
-            actor=SYSTEM,
         )
-    except (ActionUnavailable, ActionFailed):
+    except (ActionUnavailable, ActionFailed, ActionForbidden):
         return jsonify([])
     linked = dict(
         db.session.execute(
@@ -647,6 +647,23 @@ def create_booking():
         ahead = r.advance_days or DEFAULT_ADVANCE
         if start.date() > now.date() + timedelta(days=ahead):
             raise Invalid(f"at most {ahead} days ahead")
+        # Each request waiting for approval holds its slot: a member may
+        # have only so many at once (setting max_pending, 0 = no limit).
+        limit = _onsite.setting("max_pending")
+        if r.needs_approval and limit:
+            waiting = db.session.scalar(
+                select(db.func.count())
+                .select_from(Booking)
+                .where(Booking.member_id == member.id)
+                .where(Booking.status == "pending")
+                .where(Booking.ends_at >= now)
+            )
+            if (waiting or 0) >= limit:
+                return api_error(
+                    "TOO_MANY_PENDING",
+                    f"you already have {limit} requests waiting for approval",
+                    409,
+                )
     title = _text(data, "title", 200)
     note = _text(data, "note", 500)
     series = str(uuid.uuid4()) if weeks else None
