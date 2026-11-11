@@ -199,24 +199,23 @@ export function BookingDetail({ booking, options, onClose }: { booking: Booking;
       title={booking.title || booking.resourceName || t('booking.booking')}
       footer={
         <>
-          {canCancel && (
-            <Button color="red" variant="light" loading={busy} onClick={() => act(() => cancelBooking(booking.id, series), t('booking.cancelled'))}>
-              {t('booking.cancelBooking')}
+          {decide ? (
+            <Button color="red" variant="subtle" mr="auto" loading={busy} onClick={() => act(() => decideBooking(booking.id, false, note || undefined), t('booking.rejected'))}>
+              {t('booking.reject')}
             </Button>
+          ) : (
+            canCancel && (
+              <Button color="red" variant="subtle" mr="auto" loading={busy} onClick={() => act(() => cancelBooking(booking.id, series), t('booking.cancelled'))}>
+                {t('booking.cancelBooking')}
+              </Button>
+            )
           )}
+          <Button variant="default" onClick={onClose}>
+            {t('booking.close')}
+          </Button>
           {decide && (
-            <>
-              <Button color="red" variant="default" loading={busy} onClick={() => act(() => decideBooking(booking.id, false, note || undefined), t('booking.rejected'))}>
-                {t('booking.reject')}
-              </Button>
-              <Button loading={busy} onClick={() => act(() => decideBooking(booking.id, true, note || undefined), t('booking.approved'))}>
-                {t('booking.approve')}
-              </Button>
-            </>
-          )}
-          {!canCancel && !decide && (
-            <Button variant="default" onClick={onClose}>
-              {t('booking.close')}
+            <Button loading={busy} onClick={() => act(() => decideBooking(booking.id, true, note || undefined), t('booking.approved'))}>
+              {t('booking.approve')}
             </Button>
           )}
         </>
