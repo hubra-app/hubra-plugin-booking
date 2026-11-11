@@ -197,7 +197,8 @@
           "hint": "Who is coming to which room on which day.",
           "empty": "Nobody has signed up for the next two weeks yet.",
           "tomorrow": "Tomorrow"
-        }
+        },
+        "room": "Room"
       },
       "widget": {
         "today": "Onsite today",
@@ -417,7 +418,8 @@
           "hint": "Wer an welchem Tag in welchen Raum kommt.",
           "empty": "In den nächsten zwei Wochen hat sich noch niemand eingetragen.",
           "tomorrow": "Morgen"
-        }
+        },
+        "room": "Raum"
       },
       "widget": {
         "today": "Heute vor Ort",

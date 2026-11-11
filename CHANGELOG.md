@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- **Vor Ort** on the phone shows the whole week or month (not only one day):
-  a compact grid with how many come to each room per day and who brings the
-  key; tap a day to see its rooms and sign up below. On a wide screen the
+- **Vor Ort** on the phone shows the whole week or month (not only one day),
+  one room at a time: pick the room at the top. The week lists its seven
+  days with who comes; the month shows how many come and the key, and a day
+  opens its week. On a wide screen the
   week shows today's column and how many come each day, and the room column
   stays in view when scrolling sideways.
 - **Vor Ort** lists the next 2 weeks under the calendar: a card per day with

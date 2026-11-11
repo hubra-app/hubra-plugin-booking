@@ -10,6 +10,7 @@ import {
   Paper,
   ScrollArea,
   SegmentedControl,
+  Select,
   SimpleGrid,
   Stack,
   Text,
@@ -96,18 +97,17 @@ function CountDot({ s, size = 'sm' }: { s: ReturnType<typeof summary>; size?: 'x
 }
 
 const VIEW_KEY = 'booking.onsiteView'
+const ROOM_KEY = 'booking.onsiteRoom'
 
 /** Vor Ort: who plans to be in which room on which day. A week of days by
- * rooms or a month; on the phone the week or month is an overview and the
- * picked day's rooms show below it. Under the calendar, the next two weeks
- * as a list of days. */
+ * rooms or a month; on the phone one room at a time, picked at the top, with
+ * its week as a list of days or its month. Under the calendar, the next two
+ * weeks of all rooms as a list of days. */
 export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
   const { t, i18n } = useT()
   const qc = useQueryClient()
   const phone = useMediaQuery('(max-width: 48em)')
   const { run } = useAction()
-  // The picked day: the week or month around it is shown, and on the phone
-  // its rooms are listed under the calendar.
   const [anchor, setAnchor] = useState(() => {
     const asked = new URLSearchParams(window.location.search).get('day')
     return asked ? new Date(`${asked}T12:00`) : new Date()
@@ -132,6 +132,22 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
     }
   }
   const month = view === 'month'
+  // The room the phone shows.
+  const [roomId, setRoomId] = useState<number | null>(() => {
+    try {
+      return Number(localStorage.getItem(ROOM_KEY)) || null
+    } catch {
+      return null
+    }
+  })
+  const pickRoom = (id: number) => {
+    setRoomId(id)
+    try {
+      localStorage.setItem(ROOM_KEY, String(id))
+    } catch {
+      /* private mode */
+    }
+  }
 
   const days = useMemo(() => {
     if (month) {
@@ -167,7 +183,8 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
       />
     )
 
-  const picked = isoDay(anchor)
+  const room = rooms.find((r) => r.id === roomId) ?? rooms[0]
+  const roomEntries = entries.filter((e) => e.resourceId === room.id)
   const refresh = () => qc.invalidateQueries({ queryKey: ['booking', 'onsite'] })
   const quick = (room: Room, day: string, status: OnsiteStatus) =>
     run(() => setOnsite({ resourceId: room.id, day, status }), t('booking.onsite.saved')).then(
@@ -256,6 +273,9 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
 
   return (
     <Stack gap="md">
+      {phone && rooms.length > 1 && (
+        <RoomPicker rooms={rooms} value={room.id} onChange={pickRoom} />
+      )}
       <Group justify="space-between" wrap="wrap" gap="sm">
         <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
           <Group gap={4} wrap="nowrap">
@@ -303,30 +323,70 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
         {legend}
       </Stack>
 
-      {month ? (
+      {phone ? (
+        <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+          <Box p="sm" style={{ borderBottom: border }}>
+            {roomHead(room)}
+          </Box>
+          {month ? (
+            <MonthGrid
+              days={days}
+              inMonth={anchor.getMonth()}
+              today={today}
+              compact
+              locale={locale}
+              rooms={[room]}
+              entries={roomEntries}
+              onPick={(d) => {
+                setAnchor(d)
+                pickView('week')
+              }}
+            />
+          ) : (
+            days.map((d, i) => {
+              const day = isoDay(d)
+              return (
+                <Box
+                  key={day}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '52px minmax(0, 1fr)',
+                    borderTop: i ? border : undefined,
+                    background:
+                      day < today
+                        ? 'var(--mantine-color-default-hover)'
+                        : day === today
+                          ? 'color-mix(in srgb, var(--mantine-color-violet-light) 45%, transparent)'
+                          : undefined,
+                  }}
+                >
+                  <Box ta="center" py={8} style={{ borderRight: border }}>
+                    <Text size="xs" c="dimmed" tt="uppercase">
+                      {d.toLocaleDateString(locale, { weekday: 'short' }).slice(0, 2)}
+                    </Text>
+                    <Text fw={day === today ? 700 : 500} c={day === today ? 'violet' : undefined}>
+                      {d.getDate()}
+                    </Text>
+                  </Box>
+                  <Box p={6}>{cell(room, d)}</Box>
+                </Box>
+              )
+            })
+          )}
+        </Paper>
+      ) : month ? (
         <MonthGrid
           days={days}
           inMonth={anchor.getMonth()}
           today={today}
-          picked={phone ? picked : undefined}
-          compact={!!phone}
+          compact={false}
           locale={locale}
           rooms={rooms}
           entries={entries}
           onPick={(d) => {
             setAnchor(d)
-            if (!phone) pickView('week')
+            pickView('week')
           }}
-        />
-      ) : phone ? (
-        <WeekStrip
-          days={days}
-          picked={picked}
-          today={today}
-          locale={locale}
-          rooms={rooms}
-          entries={entries}
-          onPick={setAnchor}
         />
       ) : (
         <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
@@ -415,20 +475,6 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
         </Paper>
       )}
 
-      {phone && (
-        <Stack gap="sm">
-          <Text fw={600}>
-            {anchor.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}
-          </Text>
-          {rooms.map((room) => (
-            <Paper key={room.id} withBorder radius="md" p="sm">
-              {roomHead(room)}
-              <Box mt="xs">{cell(room, anchor)}</Box>
-            </Paper>
-          ))}
-        </Stack>
-      )}
-
       <NextDays
         data={soon.data}
         loading={soon.isLoading}
@@ -437,7 +483,7 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
         onQuick={quick}
         onPick={(day) => {
           setAnchor(new Date(`${day}T12:00`))
-          if (!phone) pickView('week')
+          pickView('week')
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }}
       />
@@ -457,124 +503,44 @@ export function OnsiteTab({ canManage = false }: { canManage?: boolean }) {
   )
 }
 
-/** The phone's week: a column per day, a row per room with how many come.
- * Tapping a day lists its rooms below. */
-function WeekStrip({
-  days,
-  picked,
-  today,
-  locale,
+/** The phone's room switch: buttons for a few rooms, a list for more. */
+function RoomPicker({
   rooms,
-  entries,
-  onPick,
+  value,
+  onChange,
 }: {
-  days: Date[]
-  picked: string
-  today: string
-  locale: string
   rooms: Room[]
-  entries: OnsiteEntry[]
-  onPick: (d: Date) => void
+  value: number
+  onChange: (id: number) => void
 }) {
-  const border = '1px solid var(--mantine-color-default-border)'
-  const col = (day: string) => ({
-    background:
-      day === picked
-        ? 'var(--mantine-color-violet-light)'
-        : day < today
-          ? 'var(--mantine-color-default-hover)'
-          : undefined,
-  })
-  return (
-    <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-      <Box style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
-        {days.map((d) => {
-          const day = isoDay(d)
-          return (
-            <UnstyledButton
-              key={day}
-              onClick={() => onPick(d)}
-              aria-pressed={day === picked}
-              aria-label={d.toLocaleDateString(locale, {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-              })}
-              py={6}
-              ta="center"
-              style={{ ...col(day), borderBottom: border }}
-            >
-              <Text size="xs" c="dimmed" tt="uppercase">
-                {d.toLocaleDateString(locale, { weekday: 'short' }).slice(0, 2)}
-              </Text>
-              <Text
-                fw={day === today || day === picked ? 700 : 500}
-                c={day === today ? 'violet' : undefined}
-              >
-                {d.getDate()}
-              </Text>
-            </UnstyledButton>
-          )
-        })}
-        {rooms.map((room, i) => (
-          <Box key={room.id} style={{ display: 'contents' }}>
-            <Text
-              size="xs"
-              fw={600}
-              c="dimmed"
-              px={8}
-              pt={6}
-              truncate
-              style={{ gridColumn: '1 / -1', borderTop: i ? border : undefined }}
-            >
-              {room.name}
-            </Text>
-            {days.map((d) => {
-              const day = isoDay(d)
-              const s = summary(entries, day, room.id)
-              return (
-                <UnstyledButton
-                  key={day}
-                  onClick={() => onPick(d)}
-                  tabIndex={-1}
-                  aria-hidden
-                  h={34}
-                  style={{
-                    ...col(day),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 2,
-                  }}
-                >
-                  {s.count ? (
-                    <>
-                      <CountDot s={s} />
-                      {s.key && <IconKey size={11} />}
-                    </>
-                  ) : (
-                    <Text size="xs" c="dimmed">
-                      ·
-                    </Text>
-                  )}
-                </UnstyledButton>
-              )
-            })}
-          </Box>
-        ))}
-      </Box>
-    </Paper>
+  const { t } = useT()
+  const data = rooms.map((r) => ({ value: String(r.id), label: r.name }))
+  return rooms.length <= 3 ? (
+    <SegmentedControl
+      fullWidth
+      aria-label={t('booking.onsite.room')}
+      value={String(value)}
+      onChange={(v) => onChange(Number(v))}
+      data={data}
+    />
+  ) : (
+    <Select
+      aria-label={t('booking.onsite.room')}
+      leftSection={<IconMapPin size={16} />}
+      allowDeselect={false}
+      value={String(value)}
+      onChange={(v) => v && onChange(Number(v))}
+      data={data}
+    />
   )
 }
 
-/** A month: per day and room how many are coming, and the key. On a wide
- * screen a day opens its week; on the phone (compact) a day shows the total
- * and is picked. */
+/** A month: per day and room how many are coming, and the key (compact: the
+ * total only, for the phone's one room). A day opens its week. */
 function MonthGrid({
   days,
   inMonth,
   today,
-  picked,
   compact,
   locale,
   rooms,
@@ -584,7 +550,6 @@ function MonthGrid({
   days: Date[]
   inMonth: number
   today: string
-  picked?: string
   compact: boolean
   locale: string
   rooms: Room[]
@@ -594,7 +559,7 @@ function MonthGrid({
   const { t } = useT()
   const border = '1px solid var(--mantine-color-default-border)'
   return (
-    <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+    <Paper withBorder={!compact} radius={compact ? 0 : 'md'} style={{ overflow: 'hidden' }}>
       <Box style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
         {days.slice(0, 7).map((d) => (
           <Text
@@ -616,7 +581,6 @@ function MonthGrid({
             <UnstyledButton
               key={day}
               onClick={() => onPick(d)}
-              aria-pressed={picked ? day === picked : undefined}
               aria-label={d.toLocaleDateString(locale, {
                 weekday: 'long',
                 day: 'numeric',
@@ -627,12 +591,7 @@ function MonthGrid({
                 minHeight: compact ? 54 : 76,
                 borderLeft: i % 7 ? border : undefined,
                 borderTop: i >= 7 ? border : undefined,
-                background:
-                  day === picked
-                    ? 'var(--mantine-color-violet-light)'
-                    : day < today
-                      ? 'var(--mantine-color-default-hover)'
-                      : undefined,
+                background: day < today ? 'var(--mantine-color-default-hover)' : undefined,
                 opacity: d.getMonth() === inMonth ? 1 : 0.45,
                 outline:
                   !compact && all.mine ? '2px solid var(--mantine-color-violet-filled)' : undefined,
