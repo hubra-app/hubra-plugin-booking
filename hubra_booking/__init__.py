@@ -60,6 +60,8 @@ module = Module(
         "booking_onsite",
         "booking_onsite_watches",
         "booking_onsite_days",
+        "booking_onsite_feeds",
+        "booking_onsite_pings",
     ),
     settings=(
         SettingField(
@@ -84,6 +86,8 @@ module = Module(
             description="Ab dieser Stunde geht die Liste «heute vor Ort» an Discord.",
         ),
     ),
+    # The Vor Ort calendar feed for calendar apps checks the club itself.
+    public_endpoints=("booking_bp.onsite_feed_ics",),
     tasks=("hubra_booking.tasks",),
     schedule=(
         Schedule("booking-onsite-hourly", "hubra_booking.tasks.onsite_hourly", 3600.0),
