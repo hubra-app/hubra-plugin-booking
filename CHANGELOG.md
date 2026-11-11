@@ -3,6 +3,12 @@
 ## Unreleased
 
 - Booking dialog: Ablehnen or Buchung absagen as red text at the left, then Schliessen, then Bestätigen. Resource fees use the app's money field (CHF, 2 decimals, no arrows); "Zum Inventar" is a themed link.
+- **Vor Ort moved to Anlässe**: it is a tab of the Anlässe page now
+  (/app/operations/events/onsite), next to the club's events, instead of its
+  own sidebar entry. Old links (/app/booking/onsite, reminders, the room QR
+  check-in) lead there. A club without the events module keeps Vor Ort as a
+  tab of Reservationen. Needs a Hubra version that shows plugin tabs on
+  Anlässe (hubra-app/hubra#299); raise `hubra:` at release.
 - **Vor Ort** on the phone shows the whole week or month (not only one day),
   one room at a time: pick the room at the top. The week lists its seven
   days with who comes; the month shows how many come and the key, and a day
