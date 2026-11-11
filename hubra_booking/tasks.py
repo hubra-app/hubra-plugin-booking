@@ -16,6 +16,7 @@ def onsite_hourly() -> dict:
     done = {
         "purged": onsite.purge(),
         **onsite.remind(),
+        **onsite.key_pings(),
         **onsite.announce(),
     }
     db.session.commit()

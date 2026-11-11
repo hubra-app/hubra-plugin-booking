@@ -117,6 +117,10 @@ export interface OnsiteEntry {
   memberId: number
   memberName: string | null
   mine: boolean
+  series: string | null
+  leftAt: string | null
+  joinable: boolean
+  joinsId: number | null
 }
 
 export interface OnsiteData {
@@ -136,8 +140,22 @@ export const setOnsite = (body: {
   to?: string | null
   keyHolder?: boolean
   comment?: string | null
-}) => apiFetch<OnsiteEntry>(`${BASE}/onsite`, json('PUT', body))
-export const deleteOnsite = (id: number) => apiFetch<void>(`${BASE}/onsite/${id}`, { method: 'DELETE' })
+  joinable?: boolean
+  joinsId?: number | null
+  repeatUntil?: string | null
+}) => apiFetch<OnsiteEntry & { made: number }>(`${BASE}/onsite`, json('PUT', body))
+export const deleteOnsite = (id: number, following = false) =>
+  apiFetch<void>(`${BASE}/onsite/${id}${following ? '?following=1' : ''}`, { method: 'DELETE' })
+export const leaveOnsite = (id: number) => apiFetch<OnsiteEntry>(`${BASE}/onsite/${id}/leave`, json('POST', {}))
+export const getOnsiteFeed = () => apiFetch<{ url: string }>(`${BASE}/onsite/feed`)
+export const renewOnsiteFeed = () => apiFetch<{ url: string }>(`${BASE}/onsite/feed/renew`, json('POST', {}))
+export interface OnsiteStats {
+  rooms: { id: number; name: string }[]
+  months: { month: string; rooms: { resourceId: number; days: number; visits: number; people: number }[] }[]
+  weekdays: number[]
+  total: { visits: number; people: number }
+}
+export const getOnsiteStats = (months = 6) => apiFetch<OnsiteStats>(`${BASE}/onsite/stats?months=${months}`)
 export const watchOnsite = (resourceId: number, watching: boolean) =>
   apiFetch<{ resourceId: number; watching: boolean }>(`${BASE}/onsite/watch`, json('PUT', { resourceId, watching }))
 

@@ -189,7 +189,62 @@
         "qrPrint": "Print",
         "qrRenew": "New code",
         "qrRenewed": "New code made; printed old codes no longer work",
-        "close": "Close"
+        "close": "Close",
+        "people_one": "{{count}} person",
+        "people_other": "{{count}} people",
+        "next": {
+          "title": "The next 2 weeks",
+          "hint": "Who is coming to which room on which day.",
+          "empty": "Nobody has signed up for the next two weeks yet.",
+          "tomorrow": "Tomorrow"
+        },
+        "room": "Room",
+        "joinable": "Others may join",
+        "joinableHint": "Your entry shows “Join”, e.g. when you would like help or company.",
+        "join": "Join",
+        "joined": "You are joining",
+        "joiners_one": "{{count}} joins",
+        "joiners_other": "{{count}} join",
+        "withHost": "with {{name}}",
+        "repeat": "Repeat every {{weekday}}",
+        "repeatUntil": "until",
+        "repeatSaved_one": "{{count}} day added",
+        "repeatSaved_other": "{{count}} days added",
+        "removeOne": "This day only",
+        "removeFollowing": "This and all following",
+        "series": "weekly",
+        "now": {
+          "title": "Here now",
+          "leave": "I’m leaving",
+          "left": "Checked out"
+        },
+        "filter": {
+          "busy": "Only days with people",
+          "mine": "Only mine",
+          "none": "No days match this filter."
+        },
+        "feed": {
+          "button": "Calendar feed",
+          "title": "Onsite in your calendar",
+          "hint": "Add this address to Google, Apple or Outlook as a subscribed calendar. It shows your days and the days someone comes to a room you watch (bell).",
+          "copy": "Copy",
+          "copied": "Copied",
+          "renew": "New address",
+          "renewed": "New address made; the old one no longer works",
+          "private": "The address is secret: whoever has it sees your onsite days. If it gets into the wrong hands: New address."
+        },
+        "stats": {
+          "button": "Stats",
+          "title": "Onsite: room usage",
+          "visits": "Visits",
+          "people": "People",
+          "days": "Days",
+          "room": "Room",
+          "weekdays": "Visits by weekday",
+          "hint": "Per month: visits / days with someone. Counted: “Coming” and “I’m here” up to today, not “Maybe”.",
+          "months_one": "{{count}} month",
+          "months_other": "{{count}} months"
+        }
       },
       "widget": {
         "today": "Onsite today",
@@ -401,7 +456,62 @@
         "qrPrint": "Drucken",
         "qrRenew": "Neuer Code",
         "qrRenewed": "Neuer Code erstellt; alte Ausdrucke gelten nicht mehr",
-        "close": "Schliessen"
+        "close": "Schliessen",
+        "people_one": "{{count}} Person",
+        "people_other": "{{count}} Personen",
+        "next": {
+          "title": "Die nächsten 2 Wochen",
+          "hint": "Wer an welchem Tag in welchen Raum kommt.",
+          "empty": "In den nächsten zwei Wochen hat sich noch niemand eingetragen.",
+          "tomorrow": "Morgen"
+        },
+        "room": "Raum",
+        "joinable": "Andere dürfen mitmachen",
+        "joinableHint": "Bei deinem Eintrag erscheint «Mitmachen», z. B. wenn du Hilfe brauchst oder etwas gemeinsam machen willst.",
+        "join": "Mitmachen",
+        "joined": "Du machst mit",
+        "joiners_one": "{{count}} macht mit",
+        "joiners_other": "{{count}} machen mit",
+        "withHost": "mit {{name}}",
+        "repeat": "Jeden {{weekday}} wiederholen",
+        "repeatUntil": "bis",
+        "repeatSaved_one": "{{count}} Tag eingetragen",
+        "repeatSaved_other": "{{count}} Tage eingetragen",
+        "removeOne": "Nur diesen Tag",
+        "removeFollowing": "Diesen und alle folgenden",
+        "series": "wöchentlich",
+        "now": {
+          "title": "Jetzt da",
+          "leave": "Ich gehe",
+          "left": "Ausgecheckt"
+        },
+        "filter": {
+          "busy": "Nur Tage mit Leuten",
+          "mine": "Nur meine",
+          "none": "Keine Tage für diesen Filter."
+        },
+        "feed": {
+          "button": "Kalender-Abo",
+          "title": "Vor Ort im eigenen Kalender",
+          "hint": "Füge diese Adresse in Google, Apple oder Outlook als Kalender-Abo hinzu. Sie zeigt deine Tage und die Tage, an denen jemand in einen Raum kommt, den du beobachtest (Glocke).",
+          "copy": "Kopieren",
+          "copied": "Kopiert",
+          "renew": "Neue Adresse",
+          "renewed": "Neue Adresse erstellt; die alte gilt nicht mehr",
+          "private": "Die Adresse ist geheim: Wer sie hat, sieht deine Vor-Ort-Tage. Wenn sie in falsche Hände gerät: Neue Adresse."
+        },
+        "stats": {
+          "button": "Statistik",
+          "title": "Vor Ort: Nutzung der Räume",
+          "visits": "Besuche",
+          "people": "Personen",
+          "days": "Tage",
+          "room": "Raum",
+          "weekdays": "Besuche nach Wochentag",
+          "hint": "Pro Monat: Besuche / Tage mit jemandem. Gezählt werden «Komme» und «Bin da» bis heute, ohne «Vielleicht».",
+          "months_one": "{{count}} Monat",
+          "months_other": "{{count}} Monate"
+        }
       },
       "widget": {
         "today": "Heute vor Ort",

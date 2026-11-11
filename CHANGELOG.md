@@ -2,10 +2,39 @@
 
 ## Unreleased
 
+- **Vor Ort** on the phone shows the whole week or month (not only one day),
+  one room at a time: pick the room at the top. The week lists its seven
+  days with who comes; the month shows how many come and the key, and a day
+  opens its week. On a wide screen the
+  week shows today's column and how many come each day, and the room column
+  stays in view when scrolling sideways.
+- **Vor Ort** lists the next 2 weeks under the calendar: a card per day with
+  who comes to which room, times and comments, the key, and "Ich auch".
 - **Vor Ort** has its own sidebar entry (Erweiterungen › Vor Ort), so members
   find it without opening Reservationen first. Hubra puts "Heute vor Ort" on
   the built-in Dashboard › Persönlich while Booking is on.
 - German: "z. B." with a space; the reminder hint points at Konto › Mitgliedschaft › Benachrichtigungen, where that setting is.
+- **Vor Ort, repeat:** "Jeden Dienstag wiederholen bis …" adds the same entry
+  every week (up to a year). Removing one offers "only this day" or "this and
+  all following".
+- **Vor Ort, Jetzt da:** a strip at the top shows who has checked in today
+  (Bin da) per room and who has the key; "Ich gehe" checks out. An entry with
+  an end time drops off after it.
+- **Vor Ort, filters:** on the phone the week can show only days with people
+  or only my days; "Nur meine" also filters the next two weeks.
+- **Vor Ort, calendar feed:** "Kalender-Abo" gives a secret iCal address
+  (renewable) with my days and the days others come to rooms I watch, for
+  Google, Apple or Outlook.
+- **Vor Ort, who brings the key?** The evening before, when people come to a
+  room but nobody said they bring the key, the members who brought its key in
+  the last half year are asked (once per room and day).
+- **Vor Ort, Mitmachen:** "Andere dürfen mitmachen" on an entry shows a
+  "Mitmachen" button to others; joining tells the member and shows "mit …"
+  and how many join.
+- **Vor Ort, Statistik** (for those who manage resources or bookings): visits,
+  days and people per room and month, and visits per weekday.
+- Needs `flask db upgrade` (migration 6a1c4e8b2d90: new columns on
+  booking_onsite, tables booking_onsite_feeds and booking_onsite_pings).
 
 ## 1.1.0
 

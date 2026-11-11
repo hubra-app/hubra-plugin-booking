@@ -128,6 +128,16 @@ class OnsiteEntry(db.Model):
     comment: Mapped[str | None] = mapped_column(String(300))
     # The reminder the evening before went out.
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Made together ("every Tuesday until ..."): the same series id.
+    series: Mapped[str | None] = mapped_column(String(22), index=True)
+    # Checked out ("Ich gehe"): no longer there today.
+    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Others may join what this member does (the comment): "Mitmachen".
+    joinable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # This entry joins another member's (their comment is the plan).
+    joins_id: Mapped[int | None] = mapped_column(
+        ForeignKey("booking_onsite.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )
@@ -163,5 +173,33 @@ class OnsiteDay(db.Model):
 
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     announced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+
+
+class OnsiteFeed(db.Model):
+    """A member's calendar feed of Vor Ort (secret URL for calendar apps)."""
+
+    __tablename__ = "booking_onsite_feeds"
+
+    member_id: Mapped[int] = mapped_column(
+        ForeignKey("members.id", ondelete="CASCADE"), primary_key=True
+    )
+    token: Mapped[str] = mapped_column(String(43), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+
+
+class OnsitePing(db.Model):
+    """Rooms and days whose "who brings the key?" went out (once)."""
+
+    __tablename__ = "booking_onsite_pings"
+
+    resource_id: Mapped[int] = mapped_column(
+        ForeignKey("booking_resources.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )

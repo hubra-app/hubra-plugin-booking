@@ -276,3 +276,161 @@ def test_check_in_by_room_qr_code(client, db, club):
     new = client.post(f"{BASE}/onsite/qr/{club['room']}/renew").get_json()
     assert new["url"] != qr["url"]
     assert client.post(f"{BASE}/onsite/checkin", json={"token": token}).status_code == 404
+
+
+def test_repeat_weekly_and_remove_the_following(client, db, club):
+    _login(client, "max@test.ch")
+    r = client.put(
+        f"{BASE}/onsite",
+        json={
+            "resourceId": club["room"],
+            "day": _day(1),
+            "from": "18:00",
+            "repeatUntil": _day(29),
+        },
+    )
+    assert r.status_code == 201, r.get_json()
+    assert r.get_json()["made"] == 5 and r.get_json()["series"]
+    data = client.get(f"{BASE}/onsite?from={_day(0)}&to={_day(30)}").get_json()
+    days = [e["day"] for e in data["entries"]]
+    assert days == [_day(1), _day(8), _day(15), _day(22), _day(29)]
+    assert all(e["from"] == "18:00" for e in data["entries"])
+    # "Bin da" can't repeat; nor further than a year.
+    for body in (
+        {"resourceId": club["room"], "day": _day(0), "status": "here", "repeatUntil": _day(14)},
+        {"resourceId": club["room"], "day": _day(1), "repeatUntil": _day(400)},
+    ):
+        assert client.put(f"{BASE}/onsite", json=body).status_code == 400, body
+    # Removing the third one and the following leaves the first two.
+    third = data["entries"][2]["id"]
+    assert client.delete(f"{BASE}/onsite/{third}?following=1").status_code == 204
+    left = client.get(f"{BASE}/onsite?from={_day(0)}&to={_day(30)}").get_json()["entries"]
+    assert [e["day"] for e in left] == [_day(1), _day(8)]
+
+
+def test_check_out(client, db, club):
+    _login(client, "max@test.ch")
+    entry = client.put(
+        f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(0), "status": "here"}
+    ).get_json()
+    r = client.post(f"{BASE}/onsite/{entry['id']}/leave")
+    assert r.status_code == 200 and r.get_json()["leftAt"]
+    # Not someone else's, not another day.
+    later = client.put(f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(2)}).get_json()
+    assert client.post(f"{BASE}/onsite/{later['id']}/leave").status_code == 400
+    _login(client, "lea@test.ch")
+    assert client.post(f"{BASE}/onsite/{entry['id']}/leave").status_code == 404
+
+
+def test_join_someone_s_plan(client, db, club):
+    from hubra.core.models.notification import Notification
+
+    _login(client, "max@test.ch")
+    host = client.put(
+        f"{BASE}/onsite",
+        json={"resourceId": club["room"], "day": _day(2), "comment": "Boot schleifen", "joinable": True},
+    ).get_json()
+    assert host["joinable"] is True
+    # Can't join oneself.
+    assert (
+        client.put(
+            f"{BASE}/onsite",
+            json={"resourceId": club["room"], "day": _day(2), "joinsId": host["id"]},
+        ).status_code
+        == 400
+    )
+    _login(client, "lea@test.ch")
+    r = client.put(
+        f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(2), "joinsId": host["id"]}
+    )
+    assert r.status_code == 201 and r.get_json()["joinsId"] == host["id"]
+    note = db.session.query(Notification).filter_by(member_id=club["max"]).one()
+    assert "Lea" in note.msg and "Boot schleifen" in note.msg
+    # Another day: nothing to join.
+    assert (
+        client.put(
+            f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(3), "joinsId": host["id"]}
+        ).status_code
+        == 400
+    )
+
+
+def test_calendar_feed(client, db, club):
+    _login(client, "lea@test.ch")
+    client.put(f"{BASE}/onsite/watch", json={"resourceId": club["room"], "watching": True})
+    client.put(
+        f"{BASE}/onsite",
+        json={"resourceId": club["room"], "day": _day(1), "from": "18:00", "comment": "Fräse; neu"},
+    )
+    url = client.get(f"{BASE}/onsite/feed").get_json()["url"]
+    assert client.get(f"{BASE}/onsite/feed").get_json()["url"] == url
+    _login(client, "max@test.ch")
+    client.put(f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(1)})
+    client.put(f"{BASE}/onsite", json={"resourceId": club["room"], "day": _day(4)})
+
+    path = url[url.index("/api/") :]
+    client.environ_base.pop("HTTP_AUTHORIZATION", None)
+    client.delete_cookie("access_token_cookie")
+    resp = client.get(path, headers={"Authorization": ""})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    assert resp.mimetype == "text/calendar"
+    body = resp.get_data(as_text=True)
+    assert body.count("BEGIN:VEVENT") == 2
+    assert "SUMMARY:Vor Ort: Werkstatt" in body and "T180000" in body
+    assert r"Fräse\; neu" in body and "Auch dabei: Test Max" in body
+    # Max's other day comes from the watched room.
+    assert "SUMMARY:Werkstatt: Test Max" in body
+    assert client.get(path.replace(".ics", "x.ics")).status_code == 404
+
+    _login(client, "lea@test.ch")
+    new = client.post(f"{BASE}/onsite/feed/renew").get_json()["url"]
+    assert new != url
+    assert client.get(path).status_code == 404
+
+
+def test_key_ping_the_evening_before(db, club):
+    from hubra_booking import onsite
+    from hubra_booking.models import OnsiteEntry
+
+    from hubra.core.models.notification import Notification
+
+    today = date.today()
+    tomorrow = today + timedelta(days=1)
+    db.session.add_all(
+        [
+            # Kim brought the key a month ago.
+            OnsiteEntry(resource_id=club["room"], member_id=club["kim"], day=today - timedelta(days=30), status="here", key_holder=True),
+            OnsiteEntry(resource_id=club["room"], member_id=club["max"], day=tomorrow, status="going"),
+            OnsiteEntry(resource_id=club["room"], member_id=club["lea"], day=tomorrow, status="maybe"),
+        ]
+    )
+    db.session.commit()
+    assert onsite.key_pings(datetime.combine(today, time(17)))["keyPings"] == 0
+    assert onsite.key_pings(datetime.combine(today, time(18)))["keyPings"] == 1
+    db.session.commit()
+    note = db.session.query(Notification).filter_by(member_id=club["kim"]).one()
+    assert "2" in note.msg and "Schlüssel" in note.msg
+    # Once per room and day.
+    assert onsite.key_pings(datetime.combine(today, time(19)))["keyPings"] == 0
+
+
+def test_stats_for_the_board(client, db, club):
+    from hubra_booking.models import OnsiteEntry
+
+    today = date.today()
+    db.session.add_all(
+        [
+            OnsiteEntry(resource_id=club["room"], member_id=club["max"], day=today, status="here"),
+            OnsiteEntry(resource_id=club["room"], member_id=club["lea"], day=today, status="going"),
+            OnsiteEntry(resource_id=club["room"], member_id=club["kim"], day=today, status="maybe"),
+        ]
+    )
+    db.session.commit()
+    _login(client, "max@test.ch")
+    assert client.get(f"{BASE}/onsite/stats").status_code == 403
+    _login(client, "kim@test.ch")
+    r = client.get(f"{BASE}/onsite/stats?months=3").get_json()
+    assert len(r["months"]) == 3 and r["months"][-1]["month"] == f"{today:%Y-%m}"
+    cell = r["months"][-1]["rooms"][0]
+    assert cell == {"resourceId": club["room"], "days": 1, "visits": 2, "people": 2}
+    assert r["weekdays"][today.weekday()] == 2 and r["total"]["visits"] == 2

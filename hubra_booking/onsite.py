@@ -7,9 +7,24 @@ and go on the same days.
 GET    /onsite?from=&to=     the rooms, everyone's entries, the room's bookings
                              (busy) and the rooms the caller watches
 PUT    /onsite               {resourceId, day, status: going|maybe|here,
-                              from?, to?, keyHolder?, comment?}: the caller's
-                             entry for that room and day (made or changed)
-DELETE /onsite/<id>          own entry; booking.bookings.update: anyone's
+                              from?, to?, keyHolder?, comment?, joinable?,
+                              joinsId?, repeatUntil?}: the caller's entry for
+                             that room and day (made or changed). repeatUntil:
+                             the same every week up to that day (a series).
+                             joinsId: join another member's entry that day
+                             ("Mitmachen"); they hear it.
+DELETE /onsite/<id>?following=1
+                             own entry (following: and the series' later
+                             ones); booking.bookings.update: anyone's
+POST   /onsite/<id>/leave    own entry today: checked out ("Ich gehe")
+GET    /onsite/feed          the caller's calendar feed URL (own days and
+                             days in watched rooms), made on first use
+POST   /onsite/feed/renew    a new feed URL; the old one stops working
+GET    /onsite/feed/<club>/<token>.ics
+                             the feed itself, without signing in
+GET    /onsite/stats?months= booking.resources.update or .bookings.update:
+                             per room and month the days with someone, the
+                             visits and the people; visits per weekday
 PUT    /onsite/watch         {resourceId, watching}: hear when someone plans
                              to be in that room
 POST   /onsite/checkin       {token}: the room's QR code was scanned: the
@@ -21,7 +36,8 @@ POST   /onsite/qr/<id>/renew booking.resources.update: a new code; printed
 
 The jobs (``tasks.onsite_hourly``): the evening before, everyone who said
 Komme or Vielleicht gets a reminder (bell, Discord DM, mail) with who else
-comes and who brings the key; in the morning the day's list goes out as the
+comes and who brings the key; on a room's day with people coming but no
+key, the members who brought its key lately are asked; in the morning the day's list goes out as the
 event ``booking.onsite.today`` (the Discord plugin posts it); entries older
 than the club keeps them (at least a year) are deleted.
 """
@@ -41,7 +57,15 @@ from hubra.core.models.member import Member
 from hubra.core.permissions import require_member
 
 from .body import Invalid, _body, _can, _date, _int, _names, _text
-from .models import Booking, BookingResource, OnsiteDay, OnsiteEntry, OnsiteWatch
+from .models import (
+    Booking,
+    BookingResource,
+    OnsiteDay,
+    OnsiteEntry,
+    OnsiteFeed,
+    OnsitePing,
+    OnsiteWatch,
+)
 
 RESOURCES = "booking.resources.update"
 STATUSES = ("going", "maybe", "here")
@@ -57,6 +81,11 @@ DEFAULTS = {
     "onsite_today_hour": 7,
 }
 TODAY_EVENT = "booking.onsite.today"
+# A series runs at most a year (weekly).
+SERIES_MAX = 53
+# Who "brought the key lately": key holder in the room within these days.
+KEY_LOOKBACK = timedelta(days=180)
+STATS = "booking.bookings.update"
 LINK = "/app/booking/onsite"
 
 
@@ -122,6 +151,10 @@ def _entry(e: OnsiteEntry, names: dict[int, str], viewer_id: int) -> dict:
         "memberId": e.member_id,
         "memberName": names.get(e.member_id),
         "mine": e.member_id == viewer_id,
+        "series": e.series,
+        "leftAt": e.left_at.isoformat(timespec="minutes") if e.left_at else None,
+        "joinable": e.joinable,
+        "joinsId": e.joins_id,
     }
 
 
@@ -134,6 +167,29 @@ def _range() -> tuple[date, date]:
     if end - start > MAX_RANGE:
         raise Invalid("at most 62 days at once")
     return start, end
+
+
+def _upsert(
+    member_id: int, resource_id: int, day: date, fields: dict
+) -> tuple[OnsiteEntry, bool]:
+    """The member's entry for a room and day, made or changed to *fields*."""
+    entry = db.session.scalar(
+        select(OnsiteEntry)
+        .where(OnsiteEntry.resource_id == resource_id)
+        .where(OnsiteEntry.member_id == member_id)
+        .where(OnsiteEntry.day == day)
+    )
+    created = entry is None
+    if created:
+        entry = OnsiteEntry(resource_id=resource_id, member_id=member_id, day=day)
+        db.session.add(entry)
+    elif entry.starts != fields["starts"]:
+        entry.reminded_at = None
+    for key, value in fields.items():
+        setattr(entry, key, value)
+    if entry.status != "here":
+        entry.left_at = None
+    return entry, created
 
 
 def register(bp) -> None:
@@ -216,30 +272,56 @@ def register(bp) -> None:
         starts, ends = _clock(data, "from"), _clock(data, "to")
         if starts and ends and ends <= starts:
             raise Invalid("to must be after from")
-        entry = db.session.scalar(
-            select(OnsiteEntry)
-            .where(OnsiteEntry.resource_id == resource_id)
-            .where(OnsiteEntry.member_id == member.id)
-            .where(OnsiteEntry.day == day)
-        )
-        created = entry is None
-        if created:
-            entry = OnsiteEntry(resource_id=resource_id, member_id=member.id, day=day)
-            db.session.add(entry)
-        elif entry.starts != starts:
-            entry.reminded_at = None
-        entry.status = status
-        entry.starts, entry.ends = starts, ends
-        entry.key_holder = bool(data.get("keyHolder"))
-        entry.comment = _text(data, "comment", 300)
+        until = _date(data, "repeatUntil")
+        days = [day]
+        if until is not None:
+            if status == "here":
+                raise Invalid("here can't repeat")
+            if until > today + AHEAD:
+                raise Invalid("repeatUntil is more than a year ahead")
+            while days[-1] + timedelta(days=7) <= until and len(days) < SERIES_MAX:
+                days.append(days[-1] + timedelta(days=7))
+        host = None
+        joins_id = _int(data, "joinsId", 1, 2**31 - 1)
+        if joins_id is not None:
+            host = db.session.get(OnsiteEntry, joins_id)
+            if (
+                host is None
+                or host.resource_id != resource_id
+                or host.day != day
+                or host.member_id == member.id
+                or not host.joinable
+            ):
+                raise Invalid("joinsId: nothing to join that day")
+            if until is not None:
+                raise Invalid("joining can't repeat")
+        series = secrets.token_urlsafe(16)[:22] if len(days) > 1 else None
+        fields = {
+            "status": status,
+            "starts": starts,
+            "ends": ends,
+            "key_holder": bool(data.get("keyHolder")),
+            "comment": _text(data, "comment", 300),
+            "joinable": bool(data.get("joinable")) and host is None,
+        }
+        first, created_first = None, False
+        for d in days:
+            entry, created = _upsert(member.id, resource_id, d, fields)
+            if series:
+                entry.series = series
+            elif d == day and "joinsId" in data:
+                entry.joins_id = host.id if host else None
+            if first is None:
+                first, created_first = entry, created
         db.session.flush()
-        if created:
-            tell_watchers(entry, member)
+        if created_first:
+            tell_watchers(first, member, until=days[-1] if series else None)
+        if host is not None:
+            tell_host(host, first, member)
         db.session.commit()
-        return (
-            jsonify(_entry(entry, {member.id: member.name}, member.id)),
-            201 if created else 200,
-        )
+        out = _entry(first, {member.id: member.name}, member.id)
+        out["made"] = len(days)
+        return jsonify(out), 201 if created_first else 200
 
     @bp.delete("/onsite/<int:entry_id>")
     @require_member
@@ -250,9 +332,54 @@ def register(bp) -> None:
             return api_error("NOT_FOUND", "not found", 404)
         if entry.member_id != member.id and not _can(member, "booking.bookings.update"):
             return api_error("FORBIDDEN", "only your own entries", 403)
-        db.session.delete(entry)
+        if entry.series and request.args.get("following") in ("1", "true"):
+            db.session.execute(
+                delete(OnsiteEntry)
+                .where(OnsiteEntry.series == entry.series)
+                .where(OnsiteEntry.member_id == entry.member_id)
+                .where(OnsiteEntry.day >= entry.day)
+            )
+        else:
+            db.session.delete(entry)
         db.session.commit()
         return "", 204
+
+    @bp.post("/onsite/<int:entry_id>/leave")
+    @require_member
+    def onsite_leave(entry_id: int):
+        member = get_current_member()
+        entry = db.session.get(OnsiteEntry, entry_id)
+        if entry is None or entry.member_id != member.id:
+            return api_error("NOT_FOUND", "not found", 404)
+        if entry.day != _local_now().date():
+            raise Invalid("only today's entry")
+        entry.status = "here"
+        entry.left_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return jsonify(_entry(entry, {member.id: member.name}, member.id))
+
+    @bp.get("/onsite/feed")
+    @require_member
+    def onsite_feed():
+        return jsonify({"url": _feed_url(get_current_member(), renew=False)})
+
+    @bp.post("/onsite/feed/renew")
+    @require_member
+    def onsite_feed_renew():
+        return jsonify({"url": _feed_url(get_current_member(), renew=True)})
+
+    @bp.get("/onsite/feed/<string:club>/<string:token>.ics")
+    def onsite_feed_ics(club: str, token: str):
+        return feed_ics(club, token)
+
+    @bp.get("/onsite/stats")
+    @require_member
+    def onsite_stats():
+        member = get_current_member()
+        if not (_can(member, RESOURCES) or _can(member, STATS)):
+            return api_error("FORBIDDEN", "only for those who manage bookings", 403)
+        months = _int(request.args, "months", 1, 12, default=6)
+        return jsonify(stats(months))
 
     @bp.put("/onsite/watch")
     @require_member
@@ -334,8 +461,9 @@ def register_checkin(bp) -> None:
                 key_holder=False,
             )
             db.session.add(entry)
-        was_here = not created and entry.status == "here"
+        was_here = not created and entry.status == "here" and entry.left_at is None
         entry.status = "here"
+        entry.left_at = None
         db.session.flush()
         if created:
             tell_watchers(entry, member)
@@ -409,8 +537,9 @@ def time_label(e: OnsiteEntry, german: bool) -> str:
     return ""
 
 
-def tell_watchers(entry: OnsiteEntry, member) -> int:
-    """Members watching the room hear that *member* plans to come."""
+def tell_watchers(entry: OnsiteEntry, member, until: date | None = None) -> int:
+    """Members watching the room hear that *member* plans to come (*until*:
+    every week up to that day)."""
     from hubra.core.notifications.services import notify_member
 
     room = db.session.get(BookingResource, entry.resource_id)
@@ -427,6 +556,12 @@ def tell_watchers(entry: OnsiteEntry, member) -> int:
         when = " ".join(
             x for x in (day_label(entry.day, de), time_label(entry, de)) if x
         )
+        if until is not None:
+            when += (
+                f", jede Woche bis {day_label(until, de)}"
+                if de
+                else f", every week until {day_label(until, de)}"
+            )
         if de:
             verb = "kommt vielleicht" if entry.status == "maybe" else "kommt"
             title = f"Vor Ort: {room.name}"
@@ -637,3 +772,328 @@ def purge(now: datetime | None = None) -> int:
     gone = db.session.execute(delete(OnsiteEntry).where(OnsiteEntry.day < cutoff))
     db.session.execute(delete(OnsiteDay).where(OnsiteDay.day < cutoff))
     return gone.rowcount or 0
+
+
+# ── Mitmachen ────────────────────────────────────────────────────────────────
+
+
+def tell_host(host: OnsiteEntry, entry: OnsiteEntry, member) -> None:
+    """The member whose plan *member* joins hears it."""
+    from hubra.core.notifications.services import notify_member
+
+    owner = db.session.get(Member, host.member_id)
+    room = db.session.get(BookingResource, host.resource_id)
+    if owner is None or room is None:
+        return
+    de = _german(owner)
+    what = f" ({host.comment})" if host.comment else ""
+    when = day_label(host.day, de)
+    if de:
+        title = f"Vor Ort: {room.name}"
+        msg = f"{member.name} macht am {when} mit{what}."
+    else:
+        title = f"Onsite: {room.name}"
+        msg = f"{member.name} joins you on {when}{what}."
+    notify_member(owner.id, "info", title, msg, link=f"{LINK}?day={host.day}")
+
+
+# ── Calendar feed ────────────────────────────────────────────────────────────
+
+
+def _feed_url(member, renew: bool) -> str:
+    from flask import url_for
+
+    from hubra.core.tenant.context import current_tenant
+
+    row = db.session.get(OnsiteFeed, member.id)
+    if row is None:
+        row = OnsiteFeed(member_id=member.id, token=secrets.token_urlsafe(32)[:43])
+        db.session.add(row)
+    elif renew:
+        row.token = secrets.token_urlsafe(32)[:43]
+    db.session.commit()
+    tenant = current_tenant()
+    return url_for(
+        "booking_bp.onsite_feed_ics",
+        club=tenant.slug if tenant else "-",
+        token=row.token,
+        _external=True,
+    )
+
+
+def _ics_text(value: str) -> str:
+    return (
+        value.replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
+    )
+
+
+def _fold(line: str) -> str:
+    """Lines of at most 75 octets (RFC 5545 3.1)."""
+    out, cur = [], ""
+    for ch in line:
+        if len((cur + ch).encode()) > (75 if not out else 74):
+            out.append(cur)
+            cur = ch
+        else:
+            cur += ch
+    out.append(cur)
+    return "\r\n ".join(out)
+
+
+def _vevent(uid: str, day: date, starts, ends, summary: str, desc: str, where):
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    lines = ["BEGIN:VEVENT", f"UID:{uid}", f"DTSTAMP:{stamp}"]
+    if starts:
+        end = ends or (datetime.combine(day, starts) + timedelta(hours=2)).time()
+        if end <= starts:
+            end = time(23, 59)
+        lines.append(f"DTSTART:{day:%Y%m%d}T{starts:%H%M}00")
+        lines.append(f"DTEND:{day:%Y%m%d}T{end:%H%M}00")
+    else:
+        lines.append(f"DTSTART;VALUE=DATE:{day:%Y%m%d}")
+        lines.append(f"DTEND;VALUE=DATE:{day + timedelta(days=1):%Y%m%d}")
+    lines.append(f"SUMMARY:{_ics_text(summary)}")
+    if desc:
+        lines.append(f"DESCRIPTION:{_ics_text(desc)}")
+    if where:
+        lines.append(f"LOCATION:{_ics_text(where)}")
+    lines.append("END:VEVENT")
+    return [_fold(x) for x in lines]
+
+
+def feed_ics(club: str, token: str):
+    """A member's Vor Ort as iCalendar: their own days, and the days others
+    come to a room they watch. Times are the club's local time."""
+    from flask import Response, g
+
+    from hubra.core.models.tenant import Tenant
+    from hubra.core.modules import is_enabled
+    from hubra.core.tenant.context import set_search_path
+
+    missing = api_error("NOT_FOUND", "Unknown calendar", 404)
+    tenant = None
+    if club != "-":
+        tenant = db.session.scalar(select(Tenant).where(Tenant.slug == club))
+        if tenant is None or tenant.status != "active":
+            return missing
+        g.tenant = tenant
+        set_search_path(tenant.id)
+    if not is_enabled("booking"):
+        return missing
+    row = db.session.scalar(select(OnsiteFeed).where(OnsiteFeed.token == token))
+    member = db.session.get(Member, row.member_id) if row else None
+    if member is None or member.archived_at is not None or member.status != "active":
+        return missing
+    de = _german(member)
+    since = _local_now().date() - timedelta(days=30)
+    rooms = {r.id: r for r in _rooms()}
+    watched = set(
+        db.session.scalars(
+            select(OnsiteWatch.resource_id).where(OnsiteWatch.member_id == member.id)
+        )
+    )
+    entries = list(
+        db.session.scalars(
+            select(OnsiteEntry)
+            .where(OnsiteEntry.day >= since)
+            .where(OnsiteEntry.day <= since + AHEAD)
+            .where(
+                (OnsiteEntry.member_id == member.id)
+                | OnsiteEntry.resource_id.in_(watched or {0})
+            )
+            .order_by(OnsiteEntry.day, OnsiteEntry.starts, OnsiteEntry.id)
+        )
+    )
+    names = _names(e.member_id for e in entries)
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Hubra//Vor Ort//DE",
+        "CALSCALE:GREGORIAN",
+        _fold(
+            f"X-WR-CALNAME:{_ics_text(('Vor Ort' if de else 'Onsite') + (f' · {tenant.name}' if tenant else ''))}"
+        ),
+    ]
+    mine = {(e.resource_id, e.day) for e in entries if e.member_id == member.id}
+    others: dict[tuple[int, date], list[OnsiteEntry]] = {}
+    for e in entries:
+        room = rooms.get(e.resource_id)
+        if room is None:
+            continue
+        if e.member_id == member.id:
+            same = [
+                x
+                for x in entries
+                if x.resource_id == e.resource_id
+                and x.day == e.day
+                and x.member_id != member.id
+            ]
+            also = ", ".join(names.get(x.member_id, "?") for x in same)
+            desc = "\n".join(
+                x
+                for x in (
+                    e.comment or "",
+                    (f"Auch dabei: {also}" if de else f"Also coming: {also}")
+                    if also
+                    else "",
+                )
+                if x
+            )
+            maybe = (
+                (" (vielleicht)" if de else " (maybe)") if e.status == "maybe" else ""
+            )
+            lines += _vevent(
+                f"onsite-{e.id}@hubra",
+                e.day,
+                e.starts,
+                e.ends,
+                f"{'Vor Ort' if de else 'Onsite'}: {room.name}{maybe}",
+                desc,
+                room.location,
+            )
+        elif (e.resource_id, e.day) not in mine:
+            others.setdefault((e.resource_id, e.day), []).append(e)
+    for (room_id, day), people in others.items():
+        room = rooms[room_id]
+        who = ", ".join(names.get(x.member_id, "?") for x in people)
+        lines += _vevent(
+            f"onsite-room-{room_id}-{day:%Y%m%d}@hubra",
+            day,
+            None,
+            None,
+            f"{room.name}: {who}",
+            "",
+            room.location,
+        )
+    lines.append("END:VCALENDAR")
+    return Response(
+        "\r\n".join(lines) + "\r\n",
+        mimetype="text/calendar",
+        headers={"Cache-Control": "private, max-age=900"},
+    )
+
+
+# ── Who brings the key? ──────────────────────────────────────────────────────
+
+
+def key_pings(now: datetime | None = None) -> dict:
+    """The evening before (at the reminder hour): for each room where people
+    come tomorrow but nobody said they bring the key, the members who brought
+    its key in the last half year are asked, once per room and day."""
+    from hubra.core.notifications.services import notify_member
+
+    now = now or _local_now()
+    done = {"keyPings": 0}
+    if now.hour < setting("onsite_reminder_hour"):
+        return done
+    tomorrow = now.date() + timedelta(days=1)
+    entries = list(
+        db.session.scalars(select(OnsiteEntry).where(OnsiteEntry.day == tomorrow))
+    )
+    by_room: dict[int, list[OnsiteEntry]] = {}
+    for e in entries:
+        by_room.setdefault(e.resource_id, []).append(e)
+    for room in _rooms(set(by_room)):
+        people = by_room[room.id]
+        if any(e.key_holder for e in people):
+            continue
+        if db.session.get(OnsitePing, (room.id, tomorrow)) is not None:
+            continue
+        db.session.add(OnsitePing(resource_id=room.id, day=tomorrow))
+        holders = db.session.scalars(
+            select(Member)
+            .where(
+                Member.id.in_(
+                    select(OnsiteEntry.member_id)
+                    .where(OnsiteEntry.resource_id == room.id)
+                    .where(OnsiteEntry.key_holder.is_(True))
+                    .where(OnsiteEntry.day >= tomorrow - KEY_LOOKBACK)
+                    .where(OnsiteEntry.day < tomorrow)
+                )
+            )
+            .where(Member.status == "active")
+            .where(Member.archived_at.is_(None))
+        ).all()
+        count = len(people)
+        for m in holders:
+            de = _german(m)
+            if de:
+                title = f"Schlüssel für {room.name}?"
+                msg = (
+                    f"Morgen kommen {count} in {room.name}, aber noch niemand "
+                    "bringt den Schlüssel. Kannst du?"
+                )
+            else:
+                title = f"Key for {room.name}?"
+                msg = (
+                    f"{count} are coming to {room.name} tomorrow, but nobody "
+                    "brings the key yet. Can you?"
+                )
+            notify_member(m.id, "info", title, msg, link=f"{LINK}?day={tomorrow}")
+            done["keyPings"] += 1
+    return done
+
+
+# ── Stats ────────────────────────────────────────────────────────────────────
+
+
+def stats(months: int) -> dict:
+    """Per room and month: days with someone, visits (Komme and Bin da, not
+    Vielleicht) and different people; visits per weekday."""
+    today = _local_now().date()
+    first = date(today.year, today.month, 1)
+    for _ in range(months - 1):
+        first = date(first.year - (first.month == 1), (first.month - 2) % 12 + 1, 1)
+    rooms = _rooms()
+    rows = list(
+        db.session.scalars(
+            select(OnsiteEntry)
+            .where(OnsiteEntry.day >= first)
+            .where(OnsiteEntry.day <= today)
+            .where(OnsiteEntry.status != "maybe")
+        )
+    )
+    keys = []
+    m = first
+    while m <= today:
+        keys.append(f"{m:%Y-%m}")
+        m = date(m.year + (m.month == 12), m.month % 12 + 1, 1)
+    per: dict = {
+        k: {r.id: {"days": set(), "visits": 0, "people": set()} for r in rooms}
+        for k in keys
+    }
+    weekdays = [0] * 7
+    for e in rows:
+        cell = per.get(f"{e.day:%Y-%m}", {}).get(e.resource_id)
+        if cell is None:
+            continue
+        cell["days"].add(e.day)
+        cell["visits"] += 1
+        cell["people"].add(e.member_id)
+        weekdays[e.day.weekday()] += 1
+    return {
+        "rooms": [{"id": r.id, "name": r.name} for r in rooms],
+        "months": [
+            {
+                "month": k,
+                "rooms": [
+                    {
+                        "resourceId": rid,
+                        "days": len(c["days"]),
+                        "visits": c["visits"],
+                        "people": len(c["people"]),
+                    }
+                    for rid, c in per[k].items()
+                ],
+            }
+            for k in keys
+        ],
+        "weekdays": weekdays,
+        "total": {
+            "visits": sum(weekdays),
+            "people": len({e.member_id for e in rows}),
+        },
+    }
