@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Waiting requests are limited**: a member may have at most 5 bookings
+  waiting for approval at once (setting «Offene Anfragen pro Mitglied»,
+  0 = no limit); the board isn't limited. Each one holds its slot, so one
+  member could otherwise block a resource with requests.
+- The inventory picker and the item panel read items with the caller's own
+  Inventory rights (managing resources isn't a right to read the inventory).
+- Saving the same Vor Ort day twice at once no longer ends in an error.
 - **Security fixes** (audit 2026-11-11): approving or cancelling a booking
   locks it, so two clicks at once can't bill twice; a member's series
   cancel checks every booking before withdrawing any invoice; the panel on
