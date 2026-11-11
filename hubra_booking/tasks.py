@@ -11,10 +11,11 @@ from hubra.core.tasks import celery_app
 def onsite_hourly() -> dict:
     from hubra.core.extensions import db
 
-    from . import onsite
+    from . import cleanup, onsite
 
     done = {
         "purged": onsite.purge(),
+        "orphans": cleanup.purge_orphans(),
         **onsite.remind(),
         **onsite.key_pings(),
         **onsite.announce(),

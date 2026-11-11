@@ -25,18 +25,21 @@ Vor Ort (/onsite...): see onsite.py.
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, current_app, jsonify, request
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 
 from hubra.core.auth.helpers import get_current_member
 from hubra.core.contracts import (
     SYSTEM,
     ActionFailed,
+    ActionForbidden,
     ActionUnavailable,
     available,
 )
@@ -70,6 +73,7 @@ booking_bp = Blueprint("booking_bp", __name__)
 RESOURCES = "booking.resources.update"
 BOOKINGS = "booking.bookings.update"
 KINDS = ("room", "equipment")
+_COLOR = re.compile(r"[a-z]{1,20}|#[0-9a-fA-F]{3,8}")
 LIVE = ("pending", "approved")
 # How far ahead members may book when a resource sets nothing.
 DEFAULT_ADVANCE = 180
@@ -127,14 +131,14 @@ def _inventory_available() -> bool:
     return available(_GET_ITEMS)
 
 
-def _inventory_items(ids) -> dict[int, dict]:
+def _inventory_items(ids, actor=SYSTEM) -> dict[int, dict]:
     """The Inventory items with these ids that still exist, by id."""
     ids = sorted({i for i in ids if i})
     if not ids or not _inventory_available():
         return {}
     try:
-        items = contract_query(_GET_ITEMS, ids=ids[:500], actor=SYSTEM)
-    except (ActionUnavailable, ActionFailed):
+        items = contract_query(_GET_ITEMS, ids=ids[:500], actor=actor)
+    except (ActionUnavailable, ActionFailed, ActionForbidden):
         return {}
     return {item["id"]: dict(item) for item in items}
 
@@ -286,6 +290,9 @@ def _resource_fields(r: BookingResource, data: dict, creating: bool) -> None:
     ):
         if creating or key in data:
             setattr(r, attr, _text(data, key, limit))
+    # The colour goes into CSS (a Mantine palette name or a hex code).
+    if r.color and not _COLOR.fullmatch(r.color):
+        raise Invalid("color must be a colour name or #hex")
     if item is not None:
         # Name and place follow the item; the copy kept here is the fallback
         # for when Inventory is off.
@@ -368,6 +375,11 @@ def delete_resource(resource_id: int):
             "RESOURCE_IN_USE", "it has bookings; switch it off instead", 409
         )
     log_audit(member.id, "booking.resource.delete", "BookingResource", r.id, r.name)
+    # Explicitly: a club schema may lack the foreign keys that cascade.
+    from .models import OnsiteEntry, OnsitePing, OnsiteWatch
+
+    for model in (OnsiteEntry, OnsiteWatch, OnsitePing):
+        db.session.execute(sa_delete(model).where(model.resource_id == r.id))
     db.session.delete(r)
     db.session.commit()
     return "", 204
@@ -385,7 +397,11 @@ def resource_by_item(item_id: int):
     )
     if r is not None and not r.active and not manager:
         r = None
-    items = _inventory_items([item_id])
+    # A bookable resource shows its item to every member anyway, and those
+    # who manage resources pick from all items; anyone else reads the item
+    # with their own Inventory rights, so this route doesn't reveal items to
+    # members who may not see the inventory.
+    items = _inventory_items([item_id], actor=SYSTEM if r or manager else member)
     item = items.get(item_id)
     return jsonify(
         {
@@ -560,6 +576,17 @@ def _unbill(b: Booking, actor_id: int) -> None:
     )
 
 
+def _locked_booking(booking_id: int):
+    """The booking, locked until commit: two approvers clicking at once (or
+    an approve racing a cancel) would otherwise both act, e.g. bill twice."""
+    row = db.session.scalar(
+        select(Booking).where(Booking.id == booking_id).with_for_update()
+    )
+    if row is None:
+        return None, api_error("NOT_FOUND", "not found", 404)
+    return row, None
+
+
 def _approvers() -> list[int]:
     from hubra.core.permissions import member_has_permission
 
@@ -695,7 +722,7 @@ def create_booking():
 @permission_required("bookings", "update", "Approve and manage bookings")
 def decide(booking_id: int):
     member = get_current_member()
-    b, err = _get(Booking, booking_id)
+    b, err = _locked_booking(booking_id)
     if err:
         return err
     if b.status != "pending":
@@ -728,7 +755,7 @@ def decide(booking_id: int):
 def cancel(booking_id: int):
     member = get_current_member()
     manager = _can(member, BOOKINGS)
-    b, err = _get(Booking, booking_id)
+    b, err = _locked_booking(booking_id)
     if err:
         return err
     if not manager and b.member_id != member.id:
@@ -746,8 +773,10 @@ def cancel(booking_id: int):
     rows = [x for x in rows if x.status in LIVE]
     if not rows:
         return api_error("NOT_LIVE", "this booking is no longer active", 409)
-    for x in rows:
-        if not manager:
+    # Every row is checked before anything changes, so a refusal half-way
+    # through a series doesn't leave invoices withdrawn for live bookings.
+    if not manager:
+        for x in rows:
             if x.starts_at <= now:
                 return api_error("BOOKING_STARTED", "it has already started", 409)
             invoice = db.session.get(Invoice, x.invoice_id) if x.invoice_id else None
@@ -755,6 +784,7 @@ def cancel(booking_id: int):
                 return api_error(
                     "BOOKING_PAID", "it is paid; ask the board to cancel it", 409
                 )
+    for x in rows:
         _unbill(x, member.id)
         x.status = "cancelled"
     r = db.session.get(BookingResource, b.resource_id)

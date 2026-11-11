@@ -345,3 +345,89 @@ def test_the_item_page_panel_reads_its_resource(client, club, inventory):
     client.patch(f"{BASE}/resources/{laser['id']}", json={"active": False})
     _login(client, "max@test.ch")
     assert client.get(f"{BASE}/resources/by-item/9").get_json()["resource"] is None
+
+
+def test_the_item_panel_keeps_items_to_those_who_may_see_them(
+    client, club, inventory, monkeypatch
+):
+    """Without a resource, an item's name and place come only with the
+    caller's own Inventory rights (inventory.items.read)."""
+    from hubra.core.contracts import query_contract
+    from hubra.core.modules import Module, registry
+
+    guarded = Module(
+        code="inventory",
+        name="Inventory",
+        provides=(
+            query_contract(
+                "inventory.items.get",
+                f"{__name__}:_inv_get",
+                perm="inventory.items.read",
+            ),
+            query_contract(
+                "inventory.items.list",
+                f"{__name__}:_inv_list",
+                perm="inventory.items.read",
+            ),
+        ),
+    )
+    monkeypatch.setitem(registry._modules, "inventory", guarded)
+    _login(client, "max@test.ch")
+    got = client.get(f"{BASE}/resources/by-item/9").get_json()
+    assert got["resource"] is None and got["item"] is None
+
+    # Once it is a bookable resource every member sees it in Booking anyway.
+    _login(client, "kim@test.ch")
+    assert (
+        client.get(f"{BASE}/resources/by-item/9").get_json()["item"]["name"] == "Laser"
+    )
+    client.post(f"{BASE}/resources", json={"kind": "equipment", "inventoryItemId": 9})
+    _login(client, "max@test.ch")
+    got = client.get(f"{BASE}/resources/by-item/9").get_json()
+    assert got["resource"]["name"] == "Laser" and got["item"]["name"] == "Laser"
+
+
+def test_resource_colour_is_a_name_or_hex(client, club):
+    _login(client, "kim@test.ch")
+    ok = client.post(f"{BASE}/resources", json={"name": "A", "color": "teal"})
+    assert ok.status_code == 201
+    assert (
+        client.post(
+            f"{BASE}/resources", json={"name": "B", "color": "#7048e8"}
+        ).status_code
+        == 201
+    )
+    bad = client.post(f"{BASE}/resources", json={"name": "C", "color": "red);x:url(a"})
+    assert bad.status_code == 400
+
+
+def test_a_member_cannot_cancel_part_of_a_series(client, db, club):
+    """A refusal on one booking of a series changes none of them."""
+    from hubra_booking.models import Booking
+
+    _login(client, "kim@test.ch")
+    room = client.post(
+        f"{BASE}/resources", json={"name": "Clubhaus", "kind": "room", "feeFlat": "10"}
+    ).get_json()
+    made = client.post(
+        f"{BASE}/bookings",
+        json={
+            "resourceId": room["id"],
+            "memberId": club["max"],
+            "repeatWeeks": 2,
+            **_slot(2, 9, 11),
+        },
+    ).get_json()
+    # The last one is paid already: Max's series cancel is refused, and the
+    # earlier ones keep their invoices.
+    from hubra.core.models.finance import Invoice
+
+    db.session.get(Invoice, made[-1]["invoiceId"]).status = "Paid"
+    db.session.commit()
+    _login(client, "max@test.ch")
+    r = client.post(f"{BASE}/bookings/{made[1]['id']}/cancel", json={"series": True})
+    assert r.status_code == 409 and r.get_json()["error"] == "BOOKING_PAID"
+    db.session.expire_all()
+    b = db.session.get(Booking, made[1]["id"])
+    assert b.status == "approved" and b.invoice_id == made[1]["invoiceId"]
+    assert db.session.get(Invoice, made[1]["invoiceId"]) is not None
