@@ -44,6 +44,7 @@ than the club keeps them (at least a year) are deleted.
 
 from __future__ import annotations
 
+import re
 import secrets
 from datetime import date, datetime, time, timedelta, timezone
 
@@ -822,6 +823,10 @@ def _feed_url(member, renew: bool) -> str:
 
 
 def _ics_text(value: str) -> str:
+    # CR and other control characters (from a name or a comment) would end
+    # the line in some calendar apps and let text add its own properties.
+    value = re.sub(r"\r\n?", "\n", value)
+    value = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", "", value)
     return (
         value.replace("\\", "\\\\")
         .replace(";", "\\;")
@@ -870,6 +875,7 @@ def feed_ics(club: str, token: str):
     from flask import Response, g
 
     from hubra.core.models.tenant import Tenant
+    from hubra.core.module_access import may_use
     from hubra.core.modules import is_enabled
     from hubra.core.tenant.context import set_search_path
 
@@ -886,6 +892,9 @@ def feed_ics(club: str, token: str):
     row = db.session.scalar(select(OnsiteFeed).where(OnsiteFeed.token == token))
     member = db.session.get(Member, row.member_id) if row else None
     if member is None or member.archived_at is not None or member.status != "active":
+        return missing
+    # A member whose roles no longer include Booking loses the feed too.
+    if not may_use(member, "booking"):
         return missing
     de = _german(member)
     since = _local_now().date() - timedelta(days=30)

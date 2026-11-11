@@ -434,3 +434,11 @@ def test_stats_for_the_board(client, db, club):
     cell = r["months"][-1]["rooms"][0]
     assert cell == {"resourceId": club["room"], "days": 1, "visits": 2, "people": 2}
     assert r["weekdays"][today.weekday()] == 2 and r["total"]["visits"] == 2
+
+
+def test_feed_text_cannot_break_the_ics_lines():
+    from hubra_booking.onsite import _ics_text
+
+    out = _ics_text("Fräse\r\nBEGIN:VEVENT\rX\x00Y")
+    assert "\r" not in out and "\n" not in out and "\x00" not in out
+    assert out == r"Fräse\nBEGIN:VEVENT\nXY"
