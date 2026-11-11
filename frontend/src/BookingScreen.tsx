@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { IconCalendarTime, IconChecklist, IconList, IconMapPin, IconSettings } from '@tabler/icons-react'
 import { ErrorBanner, LoadingSpinner, PageHead, Tabs, useModules, useT } from '@hubra/plugin-sdk'
@@ -9,23 +9,40 @@ import { OnsiteTab } from './OnsiteTab'
 import { ResourcesTab } from './ResourcesTab'
 
 /**
- * Booking: the calendar, the caller's bookings, requests and resources. Vor
- * Ort is a tab on Anlässe (OnsitePage.tsx); only a club without the events
- * module keeps it here.
+ * Vor Ort as a tab of Anlässe (registered in index.tsx), so members find who
+ * is in which room next to the club's events. Shown inside the Booking page
+ * only when the club has the events module off.
  */
+export function OnsiteEventsTab() {
+  const options = useQuery({ queryKey: QK.options, queryFn: getOptions })
+  const can = options.data?.can
+  if (options.isLoading) return <LoadingSpinner />
+  if (options.error) return <ErrorBanner message={errorText(options.error)} onRetry={() => options.refetch()} />
+  return <OnsiteTab canManage={!!can?.resources} canStats={!!(can?.resources || can?.bookings)} />
+}
+
+/** The old address /app/booking/onsite (links in reminders, the QR check-in) goes on working. */
+export function OnsiteRedirect() {
+  const location = useLocation()
+  const modules = useModules()
+  if (!modules.loaded) return <LoadingSpinner />
+  if (!modules.canUse('events')) return <BookingScreen />
+  return <Navigate to={`/app/operations/events/onsite${location.search}`} replace />
+}
+
+/** Booking: the calendar, the caller's bookings, requests and resources (and Vor Ort without events). */
 export function BookingScreen() {
   const { t } = useT()
+  const modules = useModules()
   const navigate = useNavigate()
   const location = useLocation()
-  const { canUse } = useModules()
-  const onsiteHere = !canUse('events')
   const options = useQuery({ queryKey: QK.options, queryFn: getOptions })
   const can = options.data?.can
   const pending = options.data?.pending ?? 0
   const part = location.pathname.split('/app/booking')[1]?.replace(/^\//, '').split('/')[0] ?? ''
   const tabs = [
     { id: 'calendar', label: t('booking.tabs.calendar'), icon: <IconCalendarTime size={16} />, show: true },
-    { id: 'onsite', label: t('booking.tabs.onsite'), icon: <IconMapPin size={16} />, show: onsiteHere },
+    { id: 'onsite', label: t('booking.tabs.onsite'), icon: <IconMapPin size={16} />, show: !modules.canUse('events') },
     { id: 'mine', label: t('booking.tabs.mine'), icon: <IconList size={16} />, show: true },
     {
       id: 'requests',

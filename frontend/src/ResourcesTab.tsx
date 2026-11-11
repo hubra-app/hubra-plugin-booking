@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Box, Button, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
+import { Anchor, Badge, Box, Button, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
 import { IconBuilding, IconPlus, IconTool } from '@tabler/icons-react'
 import { ConfirmModal, EmptyState, ErrorBanner, Field, LoadingSpinner, Modal, useT } from '@hubra/plugin-sdk'
 import { OUT_OF_USE, QK, deleteResource, errorText, listInventoryItems, listResources, saveResource, type Kind, type Options, type Resource } from './api'
@@ -30,7 +30,9 @@ export function ResourcesTab({ options }: { options: Options | undefined }) {
           {options?.inventory ? (
             <>
               {t('booking.resources.hintInventory')}{' '}
-              <Link to="/app/inventory">{t('booking.resources.toInventory')}</Link>
+              <Anchor component={Link} to="/app/inventory" inherit>
+                {t('booking.resources.toInventory')}
+              </Anchor>
             </>
           ) : (
             t('booking.resources.hint')
@@ -270,10 +272,10 @@ export function ResourceModal({
       )}
       <Group grow align="flex-start">
         <Field label={t('booking.resources.feeFlat')}>
-          <NumberInput value={feeFlat} onChange={setFeeFlat} min={0} decimalScale={2} leftSection="CHF" leftSectionWidth={44} />
+          <NumberInput value={feeFlat} onChange={setFeeFlat} min={0} decimalScale={2} thousandSeparator="’" prefix="CHF " hideControls />
         </Field>
         <Field label={t('booking.resources.feePerHour')}>
-          <NumberInput value={feePerHour} onChange={setFeePerHour} min={0} decimalScale={2} leftSection="CHF" leftSectionWidth={44} />
+          <NumberInput value={feePerHour} onChange={setFeePerHour} min={0} decimalScale={2} thousandSeparator="’" prefix="CHF " hideControls />
         </Field>
       </Group>
       {(feeFlat !== '' || feePerHour !== '') && <CategoryField value={categoryId} onChange={setCategoryId} options={options} />}
