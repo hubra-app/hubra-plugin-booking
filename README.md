@@ -1,6 +1,6 @@
 # Booking
 
-[![Test and release](https://github.com/hubra-app/hubra-plugin-booking/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/hubra-app/hubra-plugin-booking/actions/workflows/release.yml?query=branch%3Amain) [![Release](https://img.shields.io/github/v/release/hubra-app/hubra-plugin-booking)](https://github.com/hubra-app/hubra-plugin-booking/releases/latest) [![License: all rights reserved](https://img.shields.io/badge/license-all%20rights%20reserved-lightgrey)](LICENSE)
+[![Test and release](https://github.com/hubra-app/hubra-plugin-booking/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/hubra-app/hubra-plugin-booking/actions/workflows/release.yml?query=branch%3Amain) [![Release](https://img.shields.io/github/v/release/hubra-app/hubra-plugin-booking)](https://github.com/hubra-app/hubra-plugin-booking/releases/latest) [![License: all rights reserved](https://img.shields.io/badge/license-all%20rights%20reserved-lightgrey)](LICENSE) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-bitsandbricks-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/bitsandbricks)
 
 A plugin for [Hubra](https://hubra.club). Rooms and equipment on a calendar: members book a slot, overlapping bookings are refused, the board approves where a resource needs it, and a fee goes on the member's invoice.
 
