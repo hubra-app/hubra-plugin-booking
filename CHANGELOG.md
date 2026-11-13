@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Fees are open items**: a confirmed booking's fee goes to Finanzen as an open item (`finance.open_item.add`, hubra#337). With Finanzen › Einstellungen › Kleine Posten sammeln on, it waits for the member's next collected invoice (one invoice per month or quarter for the drinks tab, bookings and the rest); with it off it gets an invoice of its own straight away, as before, now due after Finanzen's usual payment term. A cancelled booking takes its fee back while it isn't billed, deletes its own unpaid invoice as before, and leaves an item that is already on a collected invoice for the treasurer. On a Hubra without open items it invoices as before. Needs Hubra 0.2.6 or later for open items (raise `hubra:` in plugin.yaml at release).
 - **Booking and Vor Ort live under Kalender**: Hubra's club calendar has them as tabs, **Vor Ort** (/app/calendar/onsite) and **Buchungen** (/app/calendar/bookings, with links to Meine Buchungen, Anfragen and Ressourcen), and its **Alles** view shows the bookings (pending ones marked with (?)) and one entry per room and day that someone comes on site. /app/booking, /app/booking/onsite and Anlässe › Vor Ort forward there. Needs the Hubra release with the club calendar tabs (`calendar.items`, tab screen `calendar`); raise `hubra:` in plugin.yaml to it when releasing.
 - **Waiting requests are limited**: a member may have at most 5 bookings
   waiting for approval at once (setting «Offene Anfragen pro Mitglied»,

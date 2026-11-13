@@ -130,13 +130,16 @@ module = Module(
         ),
     ),
     # Equipment is an Inventory item, read through Inventory's contracts.
-    # Fees go on invoices through Finance's contracts, not its services.
+    # Fees go to Finance as open items (or invoices, on an older Hubra)
+    # through its contracts, not its services.
     consumes={
         "inventory.items.get": ">=1,<2",
         "inventory.items.list": ">=1,<2",
         "inventory.item.deleted": ">=1,<2",
         "finance.invoice.create": ">=1,<2",
         "finance.invoice.delete": ">=1,<2",
+        "finance.open_item.add": ">=1,<2",
+        "finance.open_item.remove": ">=1,<2",
     },
     events={"inventory.item.deleted": "hubra_booking.hooks:on_item_deleted"},
 )
