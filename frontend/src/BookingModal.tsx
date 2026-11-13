@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert, Badge, Button, Checkbox, Group, NumberInput, Select, Stack, Text, TextInput, Textarea } from '@mantine/core'
 import { IconInfoCircle } from '@tabler/icons-react'
-import { Field, MemberPicker, Modal, useT } from '@hubra/plugin-sdk'
+import { DateField, Field, MemberPicker, Modal, TimeField, useT } from '@hubra/plugin-sdk'
 import {
   QK,
   cancelBooking,
@@ -119,23 +119,21 @@ export function BookingModal({
       <Stack gap="sm">
         <Field label={t('booking.from')}>
           <Group gap="xs" grow wrap="nowrap">
-            <TextInput
-              type="date"
+            <DateField
               aria-label={t('booking.fromDay')}
               value={startDay}
-              onChange={(e) => {
-                const v = e.currentTarget.value
+              onChange={(v) => {
                 if (endDay === startDay || endDay < v) setEndDay(v)
                 setStartDay(v)
               }}
             />
-            <TextInput type="time" aria-label={t('booking.fromTime')} value={startTime} onChange={(e) => setStartTime(e.currentTarget.value)} />
+            <TimeField aria-label={t('booking.fromTime')} value={startTime} onChange={setStartTime} />
           </Group>
         </Field>
         <Field label={t('booking.to')}>
           <Group gap="xs" grow wrap="nowrap">
-            <TextInput type="date" aria-label={t('booking.toDay')} value={endDay} min={startDay} onChange={(e) => setEndDay(e.currentTarget.value)} />
-            <TextInput type="time" aria-label={t('booking.toTime')} value={endTime} onChange={(e) => setEndTime(e.currentTarget.value)} />
+            <DateField aria-label={t('booking.toDay')} value={endDay} min={startDay} onChange={setEndDay} />
+            <TimeField aria-label={t('booking.toTime')} value={endTime} onChange={setEndTime} />
           </Group>
         </Field>
       </Stack>
