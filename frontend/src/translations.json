@@ -17,6 +17,7 @@
       "desc": "Rooms and equipment on a calendar.",
       "tabs": {
         "calendar": "Calendar",
+        "bookings": "Bookings",
         "onsite": "Onsite",
         "mine": "My bookings",
         "requests": "Requests",
@@ -284,6 +285,7 @@
       "desc": "Räume und Geräte im Kalender.",
       "tabs": {
         "calendar": "Kalender",
+        "bookings": "Buchungen",
         "onsite": "Vor Ort",
         "mine": "Meine Buchungen",
         "requests": "Anfragen",

@@ -591,3 +591,38 @@ def test_a_deleted_member_leaves_nothing_behind(client, db, club):
     kept = db.session.get(Booking, b["id"])
     assert kept.member_id is None and kept.note is None and kept.created_by is None
     assert purge_orphans()["bookings"] == 0
+
+
+def test_bookings_in_the_club_calendar(client, db, club):
+    from hubra_booking.models import Booking, OnsiteEntry
+
+    day = date.today() + timedelta(days=2)
+    at = datetime.combine(day, time(9))
+    db.session.add_all(
+        [
+            Booking(resource_id=club["room"], member_id=club["max"], title="Löten", starts_at=at, ends_at=at + timedelta(hours=2), status="approved"),
+            Booking(resource_id=club["gear"], member_id=club["lea"], starts_at=at, ends_at=at + timedelta(hours=1), status="pending"),
+            Booking(resource_id=club["room"], member_id=club["lea"], starts_at=at, ends_at=at + timedelta(hours=1), status="declined"),
+            # Vor Ort: two coming, one maybe (not counted).
+            OnsiteEntry(resource_id=club["room"], member_id=club["max"], day=day, status="going"),
+            OnsiteEntry(resource_id=club["room"], member_id=club["lea"], day=day, status="going"),
+            OnsiteEntry(resource_id=club["gear"], member_id=club["lea"], day=day, status="maybe"),
+        ]
+    )
+    db.session.commit()
+    _login(client, "lea@test.ch")
+    resp = client.get(
+        "/api/v1/app/calendar/",
+        query_string={"start": day.isoformat(), "end": day.isoformat()},
+    )
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    assert "booking" in body["sources"]
+    titles = sorted(i["title"] for i in body["items"] if i["kind"] == "booking")
+    assert titles == ["Anhänger (?)", "Werkstatt: Löten"]
+    bookings = [i for i in body["items"] if i["kind"] == "booking"]
+    assert {i["path"] for i in bookings} == {"/app/calendar/bookings"}
+    onsite = [i for i in body["items"] if i["kind"] == "onsite"]
+    assert [(i["title"], i["all_day"], i["path"]) for i in onsite] == [
+        ("Werkstatt: 2 vor Ort", True, f"/app/calendar/onsite?day={day.isoformat()}")
+    ]

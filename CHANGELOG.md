@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Booking and Vor Ort live under Kalender**: Hubra's club calendar has them as tabs, **Vor Ort** (/app/calendar/onsite) and **Buchungen** (/app/calendar/bookings, with links to Meine Buchungen, Anfragen and Ressourcen), and its **Alles** view shows the bookings (pending ones marked with (?)) and one entry per room and day that someone comes on site. /app/booking, /app/booking/onsite and Anlässe › Vor Ort forward there. Needs the Hubra release with the club calendar tabs (`calendar.items`, tab screen `calendar`); raise `hubra:` in plugin.yaml to it when releasing.
 - **Waiting requests are limited**: a member may have at most 5 bookings
   waiting for approval at once (setting «Offene Anfragen pro Mitglied»,
   0 = no limit); the board isn't limited. Each one holds its slot, so one
