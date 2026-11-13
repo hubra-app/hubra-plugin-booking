@@ -537,14 +537,42 @@ def _clash(resource_id: int, start: datetime, end: datetime, skip=None):
     return db.session.scalars(query.limit(1)).first()
 
 
+def _fee_ref(b: Booking) -> str:
+    """The booking's reference on its open item (finance.open_item.add)."""
+    return f"booking:{b.id}"
+
+
 def _bill(b: Booking, r: BookingResource, actor_id: int) -> None:
-    """Puts the fee on the member's invoice once the booking is confirmed."""
+    """Hands the fee to Finance once the booking is confirmed: as an open
+    item, which goes on the member's next collected invoice, or on an
+    invoice of its own right away when the club doesn't collect them."""
     if not b.fee or not b.member_id or b.invoice_id:
         return
-    from hubra.core.contracts import SYSTEM, call
+    from hubra.core.contracts import SYSTEM, Refused, available, call
 
     today = _local_now().date()
+    text = f"Buchung {r.name}: {_day_label(b.starts_at)}"
     # As the booking itself: whoever confirms it needn't hold invoice rights.
+    if available("finance.open_item.add"):
+        try:
+            item = call(
+                "finance.open_item.add",
+                member_id=b.member_id,
+                amount=b.fee,
+                text=text[:200],
+                source_ref=_fee_ref(b),
+                category_id=r.category_id,
+                day=b.starts_at.date(),
+                actor_id=actor_id,
+                actor=SYSTEM,
+            )
+        except Refused as exc:
+            if exc.code != "ALREADY_ADDED":  # handed over before: nothing to do
+                raise
+            return
+        b.invoice_id = item.get("invoice_id")
+        return
+    # A Hubra without open items (before 0.2.6).
     invoice = call(
         "finance.invoice.create",
         member_id=b.member_id,
@@ -552,7 +580,7 @@ def _bill(b: Booking, r: BookingResource, actor_id: int) -> None:
         due=max(today + timedelta(days=30), b.starts_at.date()),
         amount=b.fee,
         purpose="other",
-        description=f"Buchung {r.name}: {_day_label(b.starts_at)}"[:512],
+        description=text[:512],
         category_id=r.category_id,
         actor_id=actor_id,
         actor=SYSTEM,
@@ -561,19 +589,29 @@ def _bill(b: Booking, r: BookingResource, actor_id: int) -> None:
 
 
 def _unbill(b: Booking, actor_id: int) -> None:
-    """Withdraws an unpaid fee invoice; a paid one stays for the books."""
-    if not b.invoice_id:
-        return
-    invoice = db.session.get(Invoice, b.invoice_id)
-    if invoice is None or invoice.status == "Paid":
-        return
-    from hubra.core.contracts import SYSTEM, call
+    """Withdraws the fee: its unpaid invoice, or its open item while it is
+    not billed. A paid invoice stays for the books, and an item already on
+    a collected invoice stays there for the treasurer to credit."""
+    from hubra.core.contracts import SYSTEM, Refused, available, call
 
-    b.invoice_id = None
-    db.session.flush()
-    call(
-        "finance.invoice.delete", invoice_id=invoice.id, actor_id=actor_id, actor=SYSTEM
-    )
+    if b.invoice_id:
+        invoice = db.session.get(Invoice, b.invoice_id)
+        if invoice is not None and invoice.status == "Paid":
+            return
+        b.invoice_id = None
+        db.session.flush()
+        if invoice is not None:
+            call(
+                "finance.invoice.delete",
+                invoice_id=invoice.id,
+                actor_id=actor_id,
+                actor=SYSTEM,
+            )
+    if b.fee and b.member_id and available("finance.open_item.remove"):
+        try:
+            call("finance.open_item.remove", source_ref=_fee_ref(b), actor=SYSTEM)
+        except Refused:
+            pass  # on a collected invoice already
 
 
 def _locked_booking(booking_id: int):

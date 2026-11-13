@@ -43,6 +43,57 @@ def _slot(days: int, start: int, end: int) -> dict:
     }
 
 
+def _open_item(db, booking_id: int):
+    from sqlalchemy import select
+
+    from hubra.core.models.finance import OpenItem
+
+    db.session.expire_all()
+    return db.session.scalar(
+        select(OpenItem).where(OpenItem.source_ref == f"booking:{booking_id}")
+    )
+
+
+@pytest.fixture
+def collecting(monkeypatch):
+    """Finanzen › Einstellungen › Kleine Posten sammeln: monthly."""
+    import hubra.core.modules as modules
+
+    real = modules.get_config
+
+    def get_config(code, *a, **kw):
+        conf = dict(real(code, *a, **kw))
+        if code == "finance":
+            conf.update(collect_items="monthly", collect_min_amount=0)
+        return conf
+
+    monkeypatch.setattr(modules, "get_config", get_config)
+
+
+def test_a_fee_waits_as_an_open_item_when_the_club_collects(
+    client, db, club, collecting
+):
+    """With collecting on, the fee goes on the member's next collected
+    invoice, and a cancel takes it back."""
+    _login(client, "kim@test.ch")
+    room = client.post(
+        f"{BASE}/resources",
+        json={"name": "Clubhaus", "kind": "room", "feeFlat": "15", "categoryId": club["cat"]},
+    ).get_json()
+    _login(client, "max@test.ch")
+    booking = client.post(
+        f"{BASE}/bookings", json={"resourceId": room["id"], **_slot(3, 18, 20)}
+    ).get_json()
+    assert booking["status"] == "approved" and booking["invoiceId"] is None
+    item = _open_item(db, booking["id"])
+    assert item.member_id == club["max"] and float(item.amount) == 15.0
+    assert item.invoice_id is None and item.category_id == club["cat"]
+    assert item.text.startswith("Buchung Clubhaus") and item.source == "booking"
+
+    assert client.post(f"{BASE}/bookings/{booking['id']}/cancel").status_code == 200
+    assert _open_item(db, booking["id"]) is None
+
+
 def test_overlaps_are_refused_and_a_fee_is_invoiced(client, db, club):
     from hubra.core.models.finance import Invoice
 
@@ -110,6 +161,7 @@ def test_overlaps_are_refused_and_a_fee_is_invoiced(client, db, club):
     _login(client, "max@test.ch")
     assert client.post(f"{BASE}/bookings/{booking['id']}/cancel").status_code == 200
     assert db.session.get(Invoice, booking["invoiceId"]) is None
+    assert _open_item(db, booking["id"]) is None
     # A resource with bookings is switched off, not deleted.
     _login(client, "kim@test.ch")
     assert client.delete(f"{BASE}/resources/{room['id']}").status_code == 409
