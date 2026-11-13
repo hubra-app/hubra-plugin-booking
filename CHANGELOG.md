@@ -1,9 +1,9 @@
 # Booking
 
-## Unreleased
+## 1.2.0
 
 - **Fees are open items**: a confirmed booking's fee goes to Finanzen as an open item (`finance.open_item.add`, hubra#337). With Finanzen › Einstellungen › Kleine Posten sammeln on, it waits for the member's next collected invoice (one invoice per month or quarter for the drinks tab, bookings and the rest); with it off it gets an invoice of its own straight away, as before (due in 30 days, not before the booking). A cancelled booking takes its fee back while it isn't billed, deletes its own unpaid invoice as before, and leaves an item that is already on a collected invoice for the treasurer. On a Hubra without open items it invoices as before. Needs Hubra 0.2.6 or later for open items.
-- **Booking and Vor Ort live under Kalender**: Hubra's club calendar has them as tabs, **Vor Ort** (/app/calendar/onsite) and **Buchungen** (/app/calendar/bookings, with links to Meine Buchungen, Anfragen and Ressourcen), and its **Alles** view shows the bookings (pending ones marked with (?)) and one entry per room and day that someone comes on site. /app/booking, /app/booking/onsite and Anlässe › Vor Ort forward there. Needs the Hubra release with the club calendar tabs (`calendar.items`, tab screen `calendar`); raise `hubra:` in plugin.yaml to it when releasing.
+- **Booking and Vor Ort live under Kalender**: Hubra's club calendar has them as tabs, **Vor Ort** (/app/calendar/onsite) and **Buchungen** (/app/calendar/bookings, with links to Meine Buchungen, Anfragen and Ressourcen), and its **Alles** view shows the bookings (pending ones marked with (?)) and one entry per room and day that someone comes on site. /app/booking, /app/booking/onsite and Anlässe › Vor Ort forward there. Needs Hubra 0.2.6 or later (club calendar tabs).
 - **Waiting requests are limited**: a member may have at most 5 bookings
   waiting for approval at once (setting «Offene Anfragen pro Mitglied»,
   0 = no limit); the board isn't limited. Each one holds its slot, so one
@@ -28,7 +28,7 @@
   own sidebar entry. Old links (/app/booking/onsite, reminders, the room QR
   check-in) lead there. A club without the events module keeps Vor Ort as a
   tab of Reservationen. Needs a Hubra version that shows plugin tabs on
-  Anlässe (hubra-app/hubra#299); raise `hubra:` at release.
+  Anlässe (hubra-app/hubra#299, in 0.2.6).
 - **Vor Ort** on the phone shows the whole week or month (not only one day),
   one room at a time: pick the room at the top. The week lists its seven
   days with who comes; the month shows how many come and the key, and a day
