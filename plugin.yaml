@@ -1,6 +1,6 @@
 id: booking
 name: Booking
-version: "1.1.0"
+version: "1.2.0"
 hubra: ">=0.2.6,<1"
 description: "Rooms and equipment on a calendar: members book a slot, the system refuses overlaps, the board approves where needed, and a fee goes on the member's invoice."
 author: Hubra

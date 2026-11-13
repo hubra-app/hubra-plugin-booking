@@ -4,7 +4,7 @@
 
 A plugin for [Hubra](https://hubra.club). Rooms and equipment on a calendar: members book a slot, overlapping bookings are refused, the board approves where a resource needs it, and a fee goes on the member's invoice.
 
-**Version** 1.0.0 · **Works with** Hubra >=0.2,<1 · **Plugin id** `booking` · **Needs** the Inventory plugin (2.1 or newer) and the members and finance modules; an add-on of Inventory
+**Version** 1.2.0 · **Works with** Hubra >=0.2.6,<1 · **Plugin id** `booking` · **Needs** the Inventory plugin (2.1 or newer) and the members and finance modules; an add-on of Inventory
 
 ![Calendar](docs/screenshots/calendar.png)
 
