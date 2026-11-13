@@ -563,6 +563,8 @@ def _bill(b: Booking, r: BookingResource, actor_id: int) -> None:
                 source_ref=_fee_ref(b),
                 category_id=r.category_id,
                 day=b.starts_at.date(),
+                # Billed at once: due in 30 days, not before the booking.
+                due_days=max(30, (b.starts_at.date() - today).days),
                 actor_id=actor_id,
                 actor=SYSTEM,
             )
