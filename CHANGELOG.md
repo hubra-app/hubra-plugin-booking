@@ -1,5 +1,9 @@
 # Booking
 
+## Unreleased
+
+- Date, date-and-time and time fields use Hubra's date pickers: dd.mm.yyyy, a calendar that starts on Monday and 24-hour times, whatever the browser language; typed dates like 1.2.26 work too. Needs Hubra 0.2.6 or later.
+
 ## 1.2.0
 
 - **Fees are open items**: a confirmed booking's fee goes to Finanzen as an open item (`finance.open_item.add`, hubra#337). With Finanzen › Einstellungen › Kleine Posten sammeln on, it waits for the member's next collected invoice (one invoice per month or quarter for the drinks tab, bookings and the rest); with it off it gets an invoice of its own straight away, as before (due in 30 days, not before the booking). A cancelled booking takes its fee back while it isn't billed, deletes its own unpaid invoice as before, and leaves an item that is already on a collected invoice for the treasurer. On a Hubra without open items it invoices as before. Needs Hubra 0.2.6 or later for open items.

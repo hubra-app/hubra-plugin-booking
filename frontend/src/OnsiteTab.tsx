@@ -39,11 +39,13 @@ import {
   IconUsersPlus,
 } from '@tabler/icons-react'
 import {
+  DateField,
   EmptyState,
   ErrorBanner,
   Field,
   LoadingSpinner,
   Modal,
+  TimeField,
   useT,
   useToast,
 } from '@hubra/plugin-sdk'
@@ -1270,17 +1272,15 @@ function OnsiteModal({
       />
       <Field label={t('booking.onsite.time')} hint={t('booking.onsite.timeHint')}>
         <Group gap="xs" grow wrap="nowrap">
-          <TextInput
-            type="time"
+          <TimeField
             aria-label={t('booking.onsite.timeFrom')}
             value={from}
-            onChange={(e) => setFrom(e.currentTarget.value)}
+            onChange={setFrom}
           />
-          <TextInput
-            type="time"
+          <TimeField
             aria-label={t('booking.onsite.timeTo')}
             value={to}
-            onChange={(e) => setTo(e.currentTarget.value)}
+            onChange={setTo}
           />
         </Group>
       </Field>
@@ -1321,8 +1321,7 @@ function OnsiteModal({
             })}
           />
           {repeat && (
-            <TextInput
-              type="date"
+            <DateField
               size="xs"
               aria-label={t('booking.onsite.repeatUntil')}
               leftSection={
@@ -1333,7 +1332,7 @@ function OnsiteModal({
               leftSectionWidth={36}
               min={isoDay(addDays(new Date(`${day}T12:00`), 7))}
               value={until}
-              onChange={(e) => setUntil(e.currentTarget.value)}
+              onChange={setUntil}
             />
           )}
         </Group>
